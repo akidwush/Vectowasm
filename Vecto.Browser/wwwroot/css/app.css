@@ -268,6 +268,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   .compare-panel { min-height: 280px; }
   .checker-canvas img { max-height: 310px; }
   .wizard-sidebar { display: block; }
+  .workspace.is-empty .wizard-sidebar { order: -1; }
   .wizard-content { padding: 10px; }
   .wizard-block { margin-bottom: 9px; }
   .bottom-bar { flex-wrap: wrap; align-items: flex-start; }
