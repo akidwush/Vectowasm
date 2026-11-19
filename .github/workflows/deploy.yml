@@ -1,0 +1,52 @@
+name: Build and deploy Vecto WASM
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish C# to browser WebAssembly
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - name: Adapt base href for GitHub Pages
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path('publish/wwwroot')
+          index = root / 'index.html'
+          owner, repo = os.environ['GITHUB_REPOSITORY'].split('/', 1)
+          base = '/' if repo.lower() == owner.lower()+'.github.io' else '/'+repo+'/'
+          html = index.read_text()
+          html = html.replace('<base href="/" />', '<base href="'+base+'" />')
+          index.write_text(html)
+          (root / '404.html').write_text(html)
+          (root / '.nojekyll').touch()
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

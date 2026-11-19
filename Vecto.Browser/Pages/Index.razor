@@ -1,0 +1,215 @@
+@page "/"
+@inject IJSRuntime Js
+@implements IAsyncDisposable
+
+<PageTitle>Vecto • C# WebAssembly</PageTitle>
+<main class="shell">
+  <header class="top">
+    <div class="eyebrow">NEXORA / LOCAL VECTOR ENGINE</div>
+    <h1>Vecto <span>WASM</span></h1>
+    <p>Mesin C# asli berjalan di browser. Gambar tidak diunggah ke server.</p>
+  </header>
+  <div class="columns">
+    <section class="panel">
+      <h2>01 — Masukkan gambar</h2>
+      <div class="upload">
+        <InputFile OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" />
+        <p>PNG • JPG • WebP • BMP · maksimal 20 MB / 8 megapiksel</p>
+      </div>
+      @if (!string.IsNullOrEmpty(inputUrl))
+      {
+        <div class="image-frame"><img src="@inputUrl" alt="Gambar masukan" /></div>
+        <p class="meta">@sourceName · @sourceSize</p>
+      }
+      <h2>02 — Pengaturan vektorisasi</h2>
+      <div class="fields">
+        <label>Style
+          <select @bind="style">
+            <option value="Auto">Auto</option>
+            <option value="Crisp">Crisp</option>
+            <option value="Blended">Blended</option>
+            <option value="Photo">Photo</option>
+          </select>
+        </label>
+        <label>Detail
+          <select @bind="detail">
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+        </label>
+        <label>Palette
+          <select @bind="paletteMode">
+            <option value="Auto">Auto</option>
+            <option value="FixedCount">Fixed count</option>
+          </select>
+        </label>
+        @if (paletteMode == PaletteMode.Auto)
+        {
+          <label>Max colors <input type="number" min="1" max="256" @bind="maxColors" /></label>
+        }
+        else
+        {
+          <label>Colors <input type="number" min="1" max="256" @bind="colorCount" /></label>
+        }
+        <label>Seed <input type="number" @bind="seed" /></label>
+        <label class="check"><input type="checkbox" @bind="curveFitting" /> Bézier curve fitting</label>
+        @if (!curveFitting)
+        {
+          <label>Polygon epsilon (-1 = auto) <input type="number" step="0.01" @bind="polygonEpsilon" /></label>
+        }
+      </div>
+      <button class="primary" disabled="@(sourceBytes is null || running)" @onclick="TraceAsync">@(running ? "Memproses di browser…" : "Buat SVG")</button>
+      <p class="status" role="status">@status</p>
+    </section>
+    <section class="panel">
+      <h2>03 — Hasil SVG</h2>
+      @if (!string.IsNullOrEmpty(svgUrl))
+      {
+        <div class="image-frame"><img src="@svgUrl" alt="Hasil vektor SVG" /></div>
+        <p class="meta">@resultSize · @lastDiagnostics</p>
+        <p class="hash">Input RGBA FNV64: <code>@inputHash</code></p>
+        <p class="hash">Output SVG FNV64: <code>@svgHash</code></p>
+        <button class="primary" @onclick="DownloadSvg">Download SVG</button>
+      }
+      else
+      {
+        <div class="empty">Pratinjau SVG akan muncul di sini.</div>
+      }
+      <p class="footnote">Pemrosesan terjadi di browser. Gambar besar dapat membuat tab tidak responsif sementara.</p>
+    </section>
+  </div>
+  <footer>Vecto.Core C# asli · tanpa database · tanpa API tracing</footer>
+</main>
+
+@code {
+    private const long MaxUploadBytes = 20L * 1024 * 1024;
+    private byte[]? sourceBytes;
+    private string sourceName = "image";
+    private string sourceSize = "";
+    private string resultSize = "";
+    private string? inputUrl;
+    private string? svgUrl;
+    private string? svgText;
+    private string status = "Pilih gambar untuk memulai.";
+    private string lastDiagnostics = "";
+    private string inputHash = "";
+    private string svgHash = "";
+    private bool running;
+    private ImageStyle style = ImageStyle.Auto;
+    private DetailLevel detail = DetailLevel.Medium;
+    private PaletteMode paletteMode = PaletteMode.Auto;
+    private int maxColors = 16;
+    private int colorCount = 12;
+    private int seed = 1;
+    private bool curveFitting = true;
+    private double polygonEpsilon = -1;
+
+    private async Task LoadFile(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            sourceBytes = null;
+            svgText = null;
+            await ClearUrl(true);
+            await ClearUrl(false);
+            var file = e.File;
+            if (file.Size <= 0 || file.Size > MaxUploadBytes)
+                throw new InvalidDataException("Ukuran file harus 1 byte sampai 20 MB.");
+            var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+            if (ext is not (".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp"))
+                throw new InvalidDataException("Hanya PNG, JPEG, WebP, BMP yang didukung.");
+            await using var stream = file.OpenReadStream(MaxUploadBytes);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            var bytes = memory.ToArray();
+            var raster = RasterDecoder.Decode(bytes);
+            sourceBytes = bytes;
+            sourceName = Path.GetFileName(file.Name);
+            sourceSize = $"{raster.Width} × {raster.Height} · {file.Size / 1024.0:N0} KB";
+            string mime = ext switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".webp" => "image/webp",
+                ".bmp" => "image/bmp",
+                _ => "image/png"
+            };
+            inputUrl = await Js.InvokeAsync<string>("vecto.createUrl", bytes, mime);
+            status = "Gambar siap. Tekan Buat SVG.";
+        }
+        catch (Exception ex)
+        {
+            sourceBytes = null;
+            status = "Gagal membuka gambar: " + ex.Message;
+        }
+    }
+
+    private async Task TraceAsync()
+    {
+        if (sourceBytes is null || running) return;
+        running = true;
+        status = "Menjalankan Vecto.Core secara lokal…";
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+        try
+        {
+            var image = RasterDecoder.Decode(sourceBytes);
+            var options = new TraceOptions
+            {
+                Style = style,
+                Detail = detail,
+                PaletteMode = paletteMode,
+                MaxColors = Math.Clamp(maxColors, 1, 256),
+                ColorCount = Math.Clamp(colorCount, 1, 256),
+                Seed = seed,
+                CurveFitting = curveFitting,
+                PolygonEpsilon = polygonEpsilon
+            };
+            var traced = Tracer.Trace(image, options);
+            var result = SvgWriter.Write(traced.Document);
+            await ClearUrl(false);
+            svgText = result;
+            svgUrl = await Js.InvokeAsync<string>("vecto.createUrl", System.Text.Encoding.UTF8.GetBytes(result), "image/svg+xml");
+            svgHash = FnvHash.Text(result);
+            inputHash = FnvHash.Hex(image.Pixels);
+            resultSize = $"{System.Text.Encoding.UTF8.GetByteCount(result) / 1024.0:N0} KB";
+            lastDiagnostics = $"{traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
+            status = "Selesai. Seluruh tracing berlangsung di browser.";
+        }
+        catch (Exception ex)
+        {
+            status = "Tracing gagal: " + ex.Message;
+        }
+        finally
+        {
+            running = false;
+        }
+    }
+
+    private async Task DownloadSvg()
+    {
+        if (svgText is null || svgUrl is null) return;
+        string filename = Path.GetFileNameWithoutExtension(sourceName) + ".svg";
+        await Js.InvokeVoidAsync("vecto.downloadUrl", svgUrl, filename);
+    }
+
+    private async Task ClearUrl(bool input)
+    {
+        var url = input ? inputUrl : svgUrl;
+        if (!string.IsNullOrEmpty(url))
+        {
+            await Js.InvokeVoidAsync("vecto.revoke", url);
+            if (input) inputUrl = null; else svgUrl = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await ClearUrl(true);
+            await ClearUrl(false);
+        }
+        catch (JSDisconnectedException) { }
+    }
+}
