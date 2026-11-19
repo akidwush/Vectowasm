@@ -92,8 +92,16 @@ public static class AutoPaletteEstimator
         foreach (var candidate in modes)
         {
             double minDistSq = double.PositiveInfinity;
+            Lab nearestInk = default;
             foreach (var chosen in accepted)
-                minDistSq = Math.Min(minDistSq, Oklab.DistSq(candidate.Color, chosen.Color));
+            {
+                double distance = Oklab.DistSq(candidate.Color, chosen.Color);
+                if (distance < minDistSq)
+                {
+                    minDistSq = distance;
+                    nearestInk = chosen.Color;
+                }
+            }
             double nearest = Math.Sqrt(minDistSq);
             double chroma = Math.Sqrt(
                 (double)candidate.Color.A * candidate.Color.A
@@ -113,7 +121,11 @@ public static class AutoPaletteEstimator
             {
                 bool distinct = nearest >= SimilarInkDistance
                     || (share >= 0.06 && nearest >= LargeInkDistance);
-                if (!distinct) continue;
+                // A large dark region may be an encoded/photographic shade of
+                // the same black ink. Size alone must not split that ink.
+                bool similarNearBlack = candidate.Color.L < 0.29f
+                    && nearestInk.L < 0.29f && nearest < 0.135;
+                if (!distinct || similarNearBlack) continue;
 
                 // MDL-inspired gate: keeping a mode must explain enough
                 // pixel-to-ink residual to pay for three new colour parameters.
