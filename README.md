@@ -22,3 +22,9 @@ GitHub Actions builds the site automatically from main. Set **Settings → Pages
 
 ## Security
 Files are processed in the browser and never intentionally uploaded to a remote server. No credentials or private licensing file are included.
+
+## Auto Minimum Colors (experimental)
+
+Upload a PNG/JPG/WebP/BMP and **Auto Minimum Colors** automatically estimates a small number of useful inks before invoking the original C# tracer. Manual color limits and the original High/24 and desktop presets remain available.
+
+This is a deterministic, MDL-inspired **heuristic**, not a guarantee of mathematically minimal colors or superior SVG fidelity. See [AUTO_PALETTE.md](AUTO_PALETTE.md) for design details, tests and QA requirements.
