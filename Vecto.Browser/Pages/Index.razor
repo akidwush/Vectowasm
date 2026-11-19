@@ -22,6 +22,11 @@
         <p class="meta">@sourceName · @sourceSize</p>
       }
       <h2>02 — Pengaturan vektorisasi</h2>
+      <div class="presets">
+        <button type="button" class="preset" @onclick="UseHighDetail">Detail tinggi · 24 warna</button>
+        <button type="button" class="preset" @onclick="UseDesktopDefaults">Default desktop asli</button>
+      </div>
+      <p class="meta">PNG standar dibaca langsung oleh C# (tanpa Canvas). Detail tinggi adalah preset kualitas, bukan jaminan output identik desktop.</p>
       <div class="fields">
         <label>Style
           <select @bind="style">
@@ -97,13 +102,37 @@
     private string svgHash = "";
     private bool running;
     private ImageStyle style = ImageStyle.Auto;
-    private DetailLevel detail = DetailLevel.Medium;
+    private DetailLevel detail = DetailLevel.High;
     private PaletteMode paletteMode = PaletteMode.Auto;
-    private int maxColors = 16;
+    private int maxColors = 24;
     private int colorCount = 12;
     private int seed = 1;
     private bool curveFitting = true;
     private double polygonEpsilon = -1;
+
+    private void UseHighDetail()
+    {
+        style = ImageStyle.Auto;
+        detail = DetailLevel.High;
+        paletteMode = PaletteMode.Auto;
+        maxColors = 24;
+        curveFitting = true;
+        seed = 1;
+        status = "Preset detail tinggi aktif. Tekan Buat SVG untuk memproses ulang.";
+    }
+
+    private void UseDesktopDefaults()
+    {
+        style = ImageStyle.Auto;
+        detail = DetailLevel.Medium;
+        paletteMode = PaletteMode.Auto;
+        maxColors = 16;
+        colorCount = 12;
+        seed = 1;
+        curveFitting = true;
+        polygonEpsilon = -1;
+        status = "Preset original desktop aktif. Tekan Buat SVG untuk membandingkan.";
+    }
 
     private async Task LoadFile(InputFileChangeEventArgs e)
     {
