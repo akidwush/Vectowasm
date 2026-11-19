@@ -123,7 +123,7 @@
             using var memory = new MemoryStream();
             await stream.CopyToAsync(memory);
             var bytes = memory.ToArray();
-            var raster = RasterDecoder.Decode(bytes);
+            var raster = await RasterDecoder.DecodeAsync(bytes, Js);
             sourceBytes = bytes;
             sourceName = Path.GetFileName(file.Name);
             sourceSize = $"{raster.Width} × {raster.Height} · {file.Size / 1024.0:N0} KB";
@@ -153,7 +153,7 @@
         await Task.Yield();
         try
         {
-            var image = RasterDecoder.Decode(sourceBytes);
+            var image = await RasterDecoder.DecodeAsync(sourceBytes, Js);
             var options = new TraceOptions
             {
                 Style = style,
