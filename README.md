@@ -5,7 +5,7 @@ The original Vecto vectorization engine runs in **Blazor WebAssembly**. JPEG use
 - **Engine:** original C# Vecto.Core (source: https://github.com/danielmevit/vecto); 17 algorithm files copied unchanged, plus browser-only Parallel adapter.
 - **UI:** standalone Blazor WebAssembly, no server-side tracing or database.
 - **Hosting:** GitHub Pages via .github/workflows/deploy.yml on every main push.
-- **Defaults:** Style Auto, Detail Medium, MaxColors 16. Input limit 20 MiB and 8 megapixels.
+- **Defaults:** Style Auto, Detail Medium, automatically inferred palette size. Input limit 20 MiB and 8 megapixels.
 - **Validation:** compile and run in GitHub Actions; then compare browser output and CLI output on representative images before claiming byte parity.
 - **Disclaimer:** browser UI does synchronous work on the main thread; large images may freeze the tab. Numerical parity between desktop and WASM is not guaranteed. Browser canvas decoding and alpha/colorspace handling can differ from the original CLI, so input pixel hashes and SVG output may differ for some files. No ImageSharp license is required for this browser build.
 
@@ -25,6 +25,6 @@ Files are processed in the browser and never intentionally uploaded to a remote 
 
 ## Auto Minimum Colors (experimental)
 
-Upload a PNG/JPG/WebP/BMP and **Auto Minimum Colors** automatically estimates a small number of useful inks before invoking the original C# tracer. Manual color limits and the original High/24 and desktop presets remain available.
+Upload a PNG/JPG/WebP/BMP and Vecto automatically estimates the useful number of distinct inks before invoking the original C# tracer. The UI does not ask users to choose 7, 14, 15, 24 or another hard-coded count; Style and Detail remain configurable. More colors are preserved when they are supported by input evidence.
 
 This is a deterministic, MDL-inspired **heuristic**, not a guarantee of mathematically minimal colors or superior SVG fidelity. See [AUTO_PALETTE.md](AUTO_PALETTE.md) for design details, tests and QA requirements.

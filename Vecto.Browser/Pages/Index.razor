@@ -22,12 +22,11 @@
         <p class="meta">@sourceName · @sourceSize</p>
       }
       <h2>02 — Pengaturan vektorisasi</h2>
-      <div class="presets">
-        <button type="button" class="preset" @onclick="UseAutoMinimum">Auto minimum warna</button>
-        <button type="button" class="preset" @onclick="UseHighDetail">Detail tinggi · 24 warna</button>
-        <button type="button" class="preset" @onclick="UseDesktopDefaults">Default desktop asli</button>
-      </div>
-      <p class="meta">Auto minimum menganalisis warna interior dan aksen gambar, lalu memilih batas warna sebelum tracing. Manual tetap tersedia untuk membandingkan hasil. PNG standar dibaca langsung oleh C# (tanpa Canvas).</p>
+      <p class="meta">Jumlah warna dideteksi otomatis dari gambar. Engine menjaga warna desain yang berbeda dan menghindari warna palsu di tepi; tidak ada preset jumlah warna tetap.</p>
+      @if (autoEstimate is { } estimate)
+      {
+        <p class="meta">Estimasi warna utama: <strong>@estimate.EstimatedInkCount</strong>. Palet akhir dapat lebih sedikit setelah proses penggabungan.</p>
+      }
       <div class="fields">
         <label>Style
           <select @bind="style">
@@ -44,28 +43,6 @@
             <option value="High">High</option>
           </select>
         </label>
-        <label>Palette
-          <select @bind="paletteMode">
-            <option value="Auto">Auto</option>
-            <option value="FixedCount">Fixed count</option>
-          </select>
-        </label>
-        @if (paletteMode == PaletteMode.Auto)
-        {
-          <label class="check"><input type="checkbox" @bind="adaptiveColors" /> Deteksi otomatis jumlah warna minimum</label>
-          @if (adaptiveColors)
-          {
-            <p class="meta">@(autoEstimate is null ? "Upload gambar untuk estimasi warna." : $"Estimasi {autoEstimate.Value.EstimatedInkCount} warna utama · batas tracing {autoEstimate.Value.RecommendedMaxColors} (termasuk slot cadangan jika dibutuhkan).")</p>
-          }
-          else
-          {
-            <label>Max colors <input type="number" min="1" max="64" @bind="maxColors" /></label>
-          }
-        }
-        else
-        {
-          <label>Colors <input type="number" min="1" max="256" @bind="colorCount" /></label>
-        }
         <label>Seed <input type="number" @bind="seed" /></label>
         <label class="check"><input type="checkbox" @bind="curveFitting" /> Bézier curve fitting</label>
         @if (!curveFitting)
@@ -112,51 +89,10 @@
     private bool running;
     private ImageStyle style = ImageStyle.Auto;
     private DetailLevel detail = DetailLevel.Medium;
-    private PaletteMode paletteMode = PaletteMode.Auto;
-    private int maxColors = 24;
-    private bool adaptiveColors = true;
     private AutoPaletteEstimate? autoEstimate;
-    private int colorCount = 12;
     private int seed = 1;
     private bool curveFitting = true;
     private double polygonEpsilon = -1;
-
-    private void UseAutoMinimum()
-    {
-        style = ImageStyle.Auto;
-        detail = DetailLevel.Medium;
-        paletteMode = PaletteMode.Auto;
-        adaptiveColors = true;
-        curveFitting = true;
-        seed = 1;
-        status = "Auto minimum warna aktif. Tekan Buat SVG untuk menggunakan estimasi palet.";
-    }
-
-    private void UseHighDetail()
-    {
-        adaptiveColors = false;
-        style = ImageStyle.Auto;
-        detail = DetailLevel.High;
-        paletteMode = PaletteMode.Auto;
-        maxColors = 24;
-        curveFitting = true;
-        seed = 1;
-        status = "Preset detail tinggi aktif. Tekan Buat SVG untuk memproses ulang.";
-    }
-
-    private void UseDesktopDefaults()
-    {
-        adaptiveColors = false;
-        style = ImageStyle.Auto;
-        detail = DetailLevel.Medium;
-        paletteMode = PaletteMode.Auto;
-        maxColors = 16;
-        colorCount = 12;
-        seed = 1;
-        curveFitting = true;
-        polygonEpsilon = -1;
-        status = "Preset original desktop aktif. Tekan Buat SVG untuk membandingkan.";
-    }
 
     private async Task LoadFile(InputFileChangeEventArgs e)
     {
@@ -211,16 +147,14 @@
         try
         {
             var image = await RasterDecoder.DecodeAsync(sourceBytes, Js);
-            int chosenMaxColors = paletteMode == PaletteMode.Auto && adaptiveColors
-                ? (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors
-                : Math.Clamp(maxColors, 1, 64);
+            // Palette size is always inferred from decoded pixels, not UI presets.
+            int chosenMaxColors = (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors;
             var options = new TraceOptions
             {
                 Style = style,
                 Detail = detail,
-                PaletteMode = paletteMode,
+                PaletteMode = PaletteMode.Auto,
                 MaxColors = chosenMaxColors,
-                ColorCount = Math.Clamp(colorCount, 1, 256),
                 Seed = seed,
                 CurveFitting = curveFitting,
                 PolygonEpsilon = polygonEpsilon
@@ -233,10 +167,7 @@
             svgHash = FnvHash.Text(result);
             inputHash = FnvHash.Hex(image.Pixels);
             resultSize = $"{System.Text.Encoding.UTF8.GetByteCount(result) / 1024.0:N0} KB";
-            string paletteLabel = paletteMode == PaletteMode.Auto && adaptiveColors
-                ? $"Auto ≤{chosenMaxColors} colors · "
-                : "";
-            lastDiagnostics = $"{paletteLabel}{traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
+            lastDiagnostics = $"Deteksi otomatis · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
             status = "Selesai. Seluruh tracing berlangsung di browser.";
         }
         catch (Exception ex)

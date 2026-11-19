@@ -3,7 +3,7 @@
 This feature selects a compact starting palette automatically *before* calling the unchanged original C# tracer.
 
 - Source: `Vecto.Core/AutoPaletteEstimator.cs` (new file; the original 17 algorithm source files remain untouched).
-- Browser: Auto Minimum Colors is the default. Manual MaxColors and FixedCount remain available, as do the original desktop and High/24 presets.
+- Browser: palette size is always inferred from the decoded image. The UI no longer exposes High/24, fixed color count, or manual MaxColors controls. Style and geometry detail remain configurable independently of palette count.
 - Algorithm: a deterministic 4-bit/channel RGB histogram, an interior-pixel evidence gate, Oklab perceptual separation, small saturated accent protection, an MDL-inspired residual/parameter-cost test, and at most one spare palette slot for complex edges.
 - This is an **independent, heuristic approximation inspired by** Inkvec's MDL ideas, Kittl's dominant-color auto count, and interior-pixel sampling. It is **not** a port of Inkvec and makes no theoretical optimality guarantee.
 - Selection estimates ink count, then supplies an upper bound to Vecto's existing PaletteBuilder via TraceOptions.MaxColors. The actual SVG may contain fewer colors because Vecto performs its own merging and compaction.
@@ -20,8 +20,8 @@ Tests cover flat multicolor graphics, near-black shades, small saturated accents
 ## QA / manual regression (required before release)
 
 On the **same original OSIS JPEG**:
-1. Auto Minimum Colors (expected approximately 6–7 initial clusters; measure actual selection).
-2. Manual 7, manual 14, manual 24.
+1. Auto-detected palette with the real OSIS source (record estimated count and actual SVG colors).
+2. Compare against known original manual-7, manual-14 and manual-24 outputs captured before this UI change, or run isolated harness experiments outside the production UI.
 3. Compare visual fidelity (OSIS text, wheat, cotton, book, ball), region/path count, node count, and image dimensions.
 4. Confirm no detail disappears in a second clean flat-vector logo and an image with small colored accents.
 5. Check Android Chrome performance and the decoder path; verify the input source is identical across runs.

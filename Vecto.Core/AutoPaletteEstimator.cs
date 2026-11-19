@@ -16,7 +16,7 @@ public static class AutoPaletteEstimator
     private const double LargeInkDistance = 0.060;
     private const double ResidualScale = 0.045;
 
-    public static AutoPaletteEstimate Analyze(RasterImage image, int maximumColors = 24)
+    public static AutoPaletteEstimate Analyze(RasterImage image, int maximumColors = 64)
     {
         int max = Math.Clamp(maximumColors, 1, 64);
         int w = image.Width, h = image.Height;
