@@ -11,6 +11,7 @@ public static class BezierNodeOptimizer
     private const int Samples = 16;
     private const double MinJointDot = 0.95;
     private const int Passes = 4;
+    private const int MaxOriginalPieces = 8;
 
     public static List<CubicBezier> Reduce(
         IReadOnlyList<CubicBezier> input,
@@ -18,6 +19,10 @@ public static class BezierNodeOptimizer
         double maxDeviationPx)
     {
         var result = input.ToList();
+        // Track the source spans to prevent accumulated drift across merges.
+        var original = input.ToArray();
+        var spanStart = Enumerable.Range(0, input.Count).ToList();
+        var spanEnd = Enumerable.Range(0, input.Count).ToList();
         if (result.Count < 2 || !double.IsFinite(maxDeviationPx) ||
             maxDeviationPx <= 0) return result;
         double tolerance = Math.Clamp(maxDeviationPx, 0.1, 1.0);
@@ -33,13 +38,19 @@ public static class BezierNodeOptimizer
                     i++;
                     continue;
                 }
-                if (!TryMerge(first, next, tolerance, out var candidate))
+                int begin = spanStart[i], finish = spanEnd[i + 1];
+                if (finish - begin + 1 > MaxOriginalPieces
+                    || !TryMerge(first, next, tolerance, out var candidate)
+                    || !PreservesOriginal(original, begin, finish, candidate, tolerance))
                 {
                     i++;
                     continue;
                 }
                 result[i] = candidate;
                 result.RemoveAt(i + 1);
+                spanEnd[i] = finish;
+                spanStart.RemoveAt(i + 1);
+                spanEnd.RemoveAt(i + 1);
                 any = true;
                 if (i > 0) i--;
             }
@@ -119,6 +130,30 @@ public static class BezierNodeOptimizer
             !CloseTo(reduced, original, maxSq)) return false;
         merged = fitted;
         return true;
+    }
+
+
+    private static bool PreservesOriginal(
+        CubicBezier[] baseline, int first, int last,
+        CubicBezier candidate, double tolerance)
+    {
+        // Every change is compared to the *pre-optimization* geometry,
+        // not to an already modified segment. This bounds cumulative drift.
+        int pieces = last - first + 1;
+        int samples = pieces * Samples;
+        var source = new Vec2[samples + 1];
+        for (int seg = 0; seg < pieces; seg++)
+            for (int i = 0; i <= Samples; i++)
+                source[seg * Samples + i] =
+                    baseline[first + seg].Eval(i / (double)Samples);
+
+        var merged = new Vec2[samples + 1];
+        for (int i = 0; i <= samples; i++)
+            merged[i] = candidate.Eval(i / (double)samples);
+
+        double limitSq = tolerance * tolerance;
+        return CloseTo(source, merged, limitSq)
+            && CloseTo(merged, source, limitSq);
     }
 
     private static bool CloseTo(Vec2[] from, Vec2[] contour, double limitSq)
