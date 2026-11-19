@@ -22,11 +22,11 @@
         <p class="meta">@sourceName · @sourceSize</p>
       }
       <h2>02 — Pengaturan vektorisasi</h2>
-      <div class="presets">
-        <button type="button" class="preset" @onclick="UseHighDetail">Detail tinggi · 24 warna</button>
-        <button type="button" class="preset" @onclick="UseDesktopDefaults">Default desktop asli</button>
-      </div>
-      <p class="meta">PNG standar dibaca langsung oleh C# (tanpa Canvas). Detail tinggi adalah preset kualitas, bukan jaminan output identik desktop.</p>
+      <p class="meta">Jumlah warna dideteksi otomatis dari gambar. Engine menjaga warna desain yang berbeda dan menghindari warna palsu di tepi; tidak ada preset jumlah warna tetap.</p>
+      @if (autoEstimate is { } estimate)
+      {
+        <p class="meta">Estimasi warna utama: <strong>@estimate.EstimatedInkCount</strong>. Palet akhir dapat lebih sedikit setelah proses penggabungan.</p>
+      }
       <div class="fields">
         <label>Style
           <select @bind="style">
@@ -43,20 +43,6 @@
             <option value="High">High</option>
           </select>
         </label>
-        <label>Palette
-          <select @bind="paletteMode">
-            <option value="Auto">Auto</option>
-            <option value="FixedCount">Fixed count</option>
-          </select>
-        </label>
-        @if (paletteMode == PaletteMode.Auto)
-        {
-          <label>Max colors <input type="number" min="1" max="256" @bind="maxColors" /></label>
-        }
-        else
-        {
-          <label>Colors <input type="number" min="1" max="256" @bind="colorCount" /></label>
-        }
         <label>Seed <input type="number" @bind="seed" /></label>
         <label class="check"><input type="checkbox" @bind="curveFitting" /> Bézier curve fitting</label>
         @if (!curveFitting)
@@ -102,43 +88,18 @@
     private string svgHash = "";
     private bool running;
     private ImageStyle style = ImageStyle.Auto;
-    private DetailLevel detail = DetailLevel.High;
-    private PaletteMode paletteMode = PaletteMode.Auto;
-    private int maxColors = 24;
-    private int colorCount = 12;
+    private DetailLevel detail = DetailLevel.Medium;
+    private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
     private bool curveFitting = true;
     private double polygonEpsilon = -1;
-
-    private void UseHighDetail()
-    {
-        style = ImageStyle.Auto;
-        detail = DetailLevel.High;
-        paletteMode = PaletteMode.Auto;
-        maxColors = 24;
-        curveFitting = true;
-        seed = 1;
-        status = "Preset detail tinggi aktif. Tekan Buat SVG untuk memproses ulang.";
-    }
-
-    private void UseDesktopDefaults()
-    {
-        style = ImageStyle.Auto;
-        detail = DetailLevel.Medium;
-        paletteMode = PaletteMode.Auto;
-        maxColors = 16;
-        colorCount = 12;
-        seed = 1;
-        curveFitting = true;
-        polygonEpsilon = -1;
-        status = "Preset original desktop aktif. Tekan Buat SVG untuk membandingkan.";
-    }
 
     private async Task LoadFile(InputFileChangeEventArgs e)
     {
         try
         {
             sourceBytes = null;
+            autoEstimate = null;
             svgText = null;
             await ClearUrl(true);
             await ClearUrl(false);
@@ -153,6 +114,8 @@
             await stream.CopyToAsync(memory);
             var bytes = memory.ToArray();
             var raster = await RasterDecoder.DecodeAsync(bytes, Js);
+            var paletteEstimate = AutoPaletteEstimator.Analyze(raster);
+            autoEstimate = paletteEstimate;
             sourceBytes = bytes;
             sourceName = Path.GetFileName(file.Name);
             sourceSize = $"{raster.Width} × {raster.Height} · {file.Size / 1024.0:N0} KB";
@@ -164,11 +127,12 @@
                 _ => "image/png"
             };
             inputUrl = await Js.InvokeAsync<string>("vecto.createUrl", bytes, mime);
-            status = "Gambar siap. Tekan Buat SVG.";
+            status = $"Gambar siap. Auto mendeteksi {paletteEstimate.EstimatedInkCount} warna utama (maksimum tracing {paletteEstimate.RecommendedMaxColors}).";
         }
         catch (Exception ex)
         {
             sourceBytes = null;
+            autoEstimate = null;
             status = "Gagal membuka gambar: " + ex.Message;
         }
     }
@@ -183,13 +147,14 @@
         try
         {
             var image = await RasterDecoder.DecodeAsync(sourceBytes, Js);
+            // Palette size is always inferred from decoded pixels, not UI presets.
+            int chosenMaxColors = (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors;
             var options = new TraceOptions
             {
                 Style = style,
                 Detail = detail,
-                PaletteMode = paletteMode,
-                MaxColors = Math.Clamp(maxColors, 1, 256),
-                ColorCount = Math.Clamp(colorCount, 1, 256),
+                PaletteMode = PaletteMode.Auto,
+                MaxColors = chosenMaxColors,
                 Seed = seed,
                 CurveFitting = curveFitting,
                 PolygonEpsilon = polygonEpsilon
@@ -202,7 +167,7 @@
             svgHash = FnvHash.Text(result);
             inputHash = FnvHash.Hex(image.Pixels);
             resultSize = $"{System.Text.Encoding.UTF8.GetByteCount(result) / 1024.0:N0} KB";
-            lastDiagnostics = $"{traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
+            lastDiagnostics = $"Deteksi otomatis · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
             status = "Selesai. Seluruh tracing berlangsung di browser.";
         }
         catch (Exception ex)
