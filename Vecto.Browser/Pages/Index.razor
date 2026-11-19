@@ -24,7 +24,7 @@
     <span class="milestone @(svgUrl is not null ? "current" : "")"><b>4</b> Simpan SVG</span>
   </nav>
 
-  <div class="workspace">
+  <div class="workspace @(sourceBytes is null ? "is-empty" : "")">
     <section class="preview-pane" aria-label="Area pratinjau gambar">
       <div class="pane-heading">
         <div class="pane-title"><span class="pane-icon" aria-hidden="true">▧</span> Image Preview</div>
@@ -204,7 +204,7 @@
       <p>Output SVG FNV64: <code>@svgHash</code></p>
     </details>
   }
-  <footer class="page-footer">DikaTrace uses the original Vecto C# tracing engine. Semua proses gambar berjalan di perangkatmu.</footer>
+  <footer class="page-footer">DikaTrace · C# Vector Engine · Seluruh proses berjalan lokal di perangkatmu.</footer>
 </main>
 
 @code {
