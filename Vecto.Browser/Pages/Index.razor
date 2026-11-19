@@ -331,7 +331,10 @@
                 ? $" · pembersihan {c.ChangedPixels:N0} piksel"
                 : "";
             string shapeInfo = shapeMode == ShapeMode.Stacked ? "Stacked Shapes" : "Berdampingan";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
+            string fitStats = traced.Diagnostics.FittedChainNodes > 0
+                ? $" · Segmen Bézier {traced.Diagnostics.FittedChainNodes:N0} → {traced.Diagnostics.OptimizedChainNodes:N0}"
+                : "";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors";
             previewZoom = 100;
             status = "SVG selesai dibuat.";
         }
