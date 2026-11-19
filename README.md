@@ -32,3 +32,17 @@ This is a deterministic, MDL-inspired **heuristic**, not a guarantee of mathemat
 ## DikaTrace Classic Studio UI
 
 The public interface is branded **DikaTrace**, with a classic early-2000s desktop wizard layout inspired by Vector Magic's historical interface (not an official Vector Magic product). Fully Automatic, Basic and Advanced modes, bitmap/vector/split preview, zoom, reset and SVG export use the unchanged Vecto C# tracing pipeline. The engine/project names and licensing are unchanged.
+
+
+## Automatic pixel cleanup (≥900 KB input)
+
+Encoded input files of **900 KiB (921,600 bytes) or larger** are prepared in memory for tracing.
+Flat, opaque interior colors are consolidated conservatively and isolated low-contrast
+specks are repaired; transparent pixels, thin high-contrast features, and image dimensions
+are left unchanged. The original upload remains the visible preview. Smaller encoded files
+follow the existing decoder → palette → tracing pipeline without cleanup.
+
+This is **pixel cleanup, not byte-size recompression**: the original PNG/JPEG is not
+rewritten to a smaller encoded file. No guaranteed reduction in path count or identical
+results to third-party PNG optimizers is claimed. The selected SVG palette is still
+determined automatically by the existing adaptive palette estimator.
