@@ -69,7 +69,7 @@
                 <div class="panel-heading"><span class="step-index">1</span><h2 id="load-heading">Pilih gambar</h2></div>
                 <div class="panel-body">
                     <InputFile @key="fileInputKey" OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" aria-label="Pilih gambar PNG JPG WebP atau BMP" />
-                    <p class="help-text">PNG, JPG, WebP, BMP · Maksimum 20 MB / 8 MP</p>
+                    <p class="help-text">PNG, JPG, WebP, BMP · Maksimum 20 MB / 8 MP<br/>File ≥900 KB: pembersihan piksel otomatis</p>
                     @if (!string.IsNullOrEmpty(inputUrl))
                     {
                         <div class="file-details"><strong>@sourceName</strong><span>@sourceSize</span></div>
@@ -128,7 +128,8 @@
                         @if (showDiagnostics)
                         {
                             <div class="diagnostic-panel">
-                                <div>RGBA FNV64 <code>@inputHash</code></div>
+                                <div>RGBA asli <code>@originalHash</code></div>
+                                <div>RGBA tracing <code>@inputHash</code></div>
                                 <div>SVG FNV64 <code>@svgHash</code></div>
                             </div>
                         }
@@ -142,6 +143,9 @@
 
 @code {
     private const long MaxUploadBytes = 20L * 1024 * 1024;
+    private RasterImage? preparedRaster;
+    private PixelCompressionResult? pixelCompression;
+    private string originalHash = "";
     private byte[]? sourceBytes;
     private string sourceName = "image";
     private string sourceSize = "";
@@ -170,6 +174,9 @@
     {
         if (running || loadingFile) return;
         sourceBytes = null;
+        preparedRaster = null;
+        pixelCompression = null;
+        originalHash = "";
         sourceName = "image";
         sourceSize = "";
         resultSize = "";
@@ -232,6 +239,9 @@
             previewZoom = 100;
             autoEstimate = null;
             sourceBytes = null;
+            preparedRaster = null;
+            pixelCompression = null;
+            originalHash = "";
             svgText = null;
             sourceName = Path.GetFileName(file.Name);
             sourceSize = $"{file.Size / 1024.0:N0} KB";
@@ -245,11 +255,18 @@
             await Js.InvokeVoidAsync("vecto.afterPaint");
 
             var raster = await RasterDecoder.DecodeAsync(bytes, Js);
-            var paletteEstimate = AutoPaletteEstimator.Analyze(raster);
+            // File-size policy applies to encoded input bytes, never pixel dimensions.
+            var prepared = PixelCompressor.Prepare(raster, bytes.LongLength);
+            var paletteEstimate = AutoPaletteEstimator.Analyze(prepared.Image);
+            originalHash = FnvHash.Hex(raster.Pixels);
+            preparedRaster = prepared.Applied ? prepared.Image : null;
+            pixelCompression = prepared.Applied ? prepared : null;
             sourceBytes = bytes;
             autoEstimate = paletteEstimate;
             sourceSize = $"{raster.Width} × {raster.Height} · {file.Size / 1024.0:N0} KB";
-            status = $"Gambar siap. Terdeteksi {paletteEstimate.EstimatedInkCount} warna utama.";
+            status = prepared.Applied
+                ? $"Gambar siap. Pembersihan piksel: {prepared.ChangedPixels:N0} piksel disesuaikan. Warna terdeteksi: {paletteEstimate.EstimatedInkCount}."
+                : $"Gambar siap. Terdeteksi {paletteEstimate.EstimatedInkCount} warna utama.";
             if (!string.IsNullOrEmpty(oldUrl))
                 await Js.InvokeVoidAsync("vecto.revoke", oldUrl);
         }
@@ -278,7 +295,8 @@
         await Task.Yield();
         try
         {
-            var image = await RasterDecoder.DecodeAsync(sourceBytes, Js);
+            // Reuse exactly the raster used by Auto Palette when cleanup is active.
+            var image = preparedRaster ?? await RasterDecoder.DecodeAsync(sourceBytes, Js);
             // Palette size is always inferred from decoded pixels, not UI presets.
             int chosenMaxColors = (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors;
             var options = new TraceOptions
@@ -300,7 +318,10 @@
             previewMode = "compare";
             inputHash = FnvHash.Hex(image.Pixels);
             resultSize = $"{System.Text.Encoding.UTF8.GetByteCount(result) / 1024.0:N0} KB";
-            lastDiagnostics = $"Deteksi otomatis · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
+            string pixelInfo = pixelCompression is { Applied: true } c
+                ? $" · pembersihan {c.ChangedPixels:N0} piksel"
+                : "";
+            lastDiagnostics = $"Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
             previewZoom = 100;
             status = "SVG selesai dibuat.";
         }
