@@ -154,11 +154,16 @@ var rasterStack = Rasterizer.Render(stackedTrace.Document, supersample: 1);
 Check(rasterPlanar.Pixels.SequenceEqual(rasterStack.Pixels),
     "Stacked mode produces same visible pixels in nested example");
 string stackedSvg = SvgWriter.Write(stackedTrace.Document);
-Check(stackedSvg.Contains("id=\"dikatrace-layer-0\"")
-    && stackedSvg.Contains("data-palette-index="),
-    "Stacked SVG exposes editable layer groups");
-Check(!SvgWriter.Write(planarTrace.Document).Contains("dikatrace-layer-"),
-    "Planar SVG remains unchanged");
+Check(!stackedSvg.Contains("<g ") && !stackedSvg.Contains("</g>"),
+    "Stacked SVG contains no groups");
+Check(stackedSvg.Split("<path ", StringSplitOptions.None).Length - 1
+      == stackedTrace.Document.Regions.Count,
+    "Every stacked shape is one independent SVG path");
+Check(!stackedSvg.Contains("dikatrace-layer-") &&
+      !stackedSvg.Contains("data-palette-index="),
+    "Stacked SVG has no group-only attributes");
+Check(!SvgWriter.Write(planarTrace.Document).Contains("<g "),
+    "Planar SVG remains ungrouped");
 
 var transparentRing = new RasterImage(48, 48);
 for (int y = 5; y < 42; y++)

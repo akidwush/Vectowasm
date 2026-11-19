@@ -18,12 +18,10 @@ public static class SvgWriter
         sb.Append("<svg width=\"").Append(doc.Width).Append("pt\" height=\"").Append(doc.Height)
           .Append("pt\" viewBox=\"0 0 ").Append(doc.Width).Append(' ').Append(doc.Height)
           .Append("\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n");
-        int group = 0;
+        // Both modes emit direct, independent SVG paths. Stacked rendering
+        // relies on the order of these paths, not an SVG <g> wrapper.
         foreach (var region in doc.Regions)
         {
-            if (doc.ShapeMode == ShapeMode.Stacked)
-                sb.Append("<g id=\"dikatrace-layer-").Append(group++)
-                  .Append("\" data-palette-index=\"").Append(region.PaletteIndex).Append("\">\n");
             var c = doc.Palette[region.PaletteIndex].Color;
             sb.Append("<path fill=\"#")
               .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
@@ -32,7 +30,6 @@ public static class SvgWriter
               .Append("\" opacity=\"1.00\" d=\"");
             foreach (var loop in region.Loops) AppendLoop(sb, loop);
             sb.Append("\" />\n");
-            if (doc.ShapeMode == ShapeMode.Stacked) sb.Append("</g>\n");
         }
         sb.Append("</svg>\n");
         return sb.ToString();
