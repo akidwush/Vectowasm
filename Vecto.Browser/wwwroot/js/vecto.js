@@ -3,6 +3,10 @@ window.vecto = {
   createUrl(bytes, mime) {
     return URL.createObjectURL(new Blob([bytes], { type: mime }));
   },
+  afterPaint() {
+    // Give the browser two frames to present the newly chosen bitmap.
+    return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  },
   revoke(url) {
     if (typeof url === "string" && url.startsWith("blob:")) URL.revokeObjectURL(url);
   },
