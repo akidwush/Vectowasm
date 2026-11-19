@@ -112,3 +112,61 @@ Check(edgePrepared == edgeOrig,
 Check(PixelCompressor.Prepare(twoColorGraphic).Image.Pixels
         .SequenceEqual(twoColorGraphic.Pixels),
     "Already clean artwork remains pixel-identical");
+
+
+// Shape stacking: a black frame around a red fill with a smaller white
+// foreground and black dot. Thin parent frame has smaller area than its fill.
+static RasterImage StackedFixture()
+{
+    var img = new RasterImage(64, 64);
+    var white = new Rgba32(250, 250, 250, 255);
+    var black = new Rgba32(0, 0, 0, 255);
+    var red = new Rgba32(222, 17, 20, 255);
+    for (int y = 0; y < 64; y++)
+        for (int x = 0; x < 64; x++)
+        {
+            var c = white;
+            if (x >= 8 && x < 56 && y >= 8 && y < 56) c = black;
+            if (x >= 10 && x < 54 && y >= 10 && y < 54) c = red;
+            if (x >= 20 && x < 44 && y >= 20 && y < 44) c = white;
+            if (x >= 29 && x < 35 && y >= 29 && y < 35) c = black;
+            img.SetPixel(x, y, c);
+        }
+    return img;
+}
+TraceOptions StackingOptions(ShapeMode mode) => new()
+{
+    Style = ImageStyle.Crisp, ShapeMode = mode,
+    CurveFitting = false, PolygonEpsilon = 0
+};
+var sampleImage = StackedFixture();
+var planarTrace = Tracer.Trace(sampleImage, StackingOptions(ShapeMode.Planar));
+var stackedTrace = Tracer.Trace(sampleImage, StackingOptions(ShapeMode.Stacked));
+Check(stackedTrace.Document.ShapeMode == ShapeMode.Stacked,
+    "Stacked option produces stacked vector document");
+Check(stackedTrace.Document.Regions.Count == planarTrace.Document.Regions.Count,
+    "Stacked mode retains connected shapes");
+Check(stackedTrace.Document.Regions.Sum(r => r.Loops.Count) <
+      planarTrace.Document.Regions.Sum(r => r.Loops.Count),
+    "Opaque nested holes become overlapping shapes");
+var rasterPlanar = Rasterizer.Render(planarTrace.Document, supersample: 1);
+var rasterStack = Rasterizer.Render(stackedTrace.Document, supersample: 1);
+Check(rasterPlanar.Pixels.SequenceEqual(rasterStack.Pixels),
+    "Stacked mode produces same visible pixels in nested example");
+string stackedSvg = SvgWriter.Write(stackedTrace.Document);
+Check(stackedSvg.Contains("id=\"dikatrace-layer-0\"")
+    && stackedSvg.Contains("data-palette-index="),
+    "Stacked SVG exposes editable layer groups");
+Check(!SvgWriter.Write(planarTrace.Document).Contains("dikatrace-layer-"),
+    "Planar SVG remains unchanged");
+
+var transparentRing = new RasterImage(48, 48);
+for (int y = 5; y < 42; y++)
+    for (int x = 5; x < 42; x++)
+        if (x < 8 || x >= 39 || y < 8 || y >= 39)
+            transparentRing.SetPixel(x, y, new Rgba32(0, 0, 0, 255));
+var transparentStack = Tracer.Trace(transparentRing, StackingOptions(ShapeMode.Stacked));
+Check(Rasterizer.Render(transparentStack.Document, supersample: 1)
+    .GetPixel(20, 20).A == 0, "Transparent holes remain transparent");
+Check(SvgWriter.Write(Tracer.Trace(sampleImage, StackingOptions(ShapeMode.Stacked)).Document) == stackedSvg,
+    "Stacked output remains deterministic");

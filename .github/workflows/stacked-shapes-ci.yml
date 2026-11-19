@@ -1,0 +1,19 @@
+name: Validate C# stacked shapes
+on:
+  pull_request:
+  push:
+    branches: [feat/dikatrace-stacked-shapes-csharp]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run palette, pixel and stacking tests
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Build Blazor application
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish

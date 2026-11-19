@@ -21,6 +21,7 @@ public sealed class VectorDocument
 {
     public int Width { get; init; }
     public int Height { get; init; }
+    public ShapeMode ShapeMode { get; init; } = ShapeMode.Planar;
     public required List<PaletteEntry> Palette { get; init; }
     /// <summary>Largest area first, so backgrounds paint below details regardless of renderer.</summary>
     public required List<RegionPath> Regions { get; init; }
@@ -196,7 +197,12 @@ public static class Tracer
                 Loops = loops,
             });
         }
-        var doc = new VectorDocument { Width = w, Height = h, Palette = palette, Regions = regions };
+        var originalDoc = new VectorDocument { Width = w, Height = h, Palette = palette, Regions = regions };
+        var doc = options.ShapeMode == ShapeMode.Stacked
+            ? StackedShapeBuilder.Build(originalDoc, seg, graph, regionOrder, ct)
+            : originalDoc;
+        if (options.ShapeMode == ShapeMode.Stacked)
+            nodes = doc.Regions.Sum(r => r.Loops.Sum(loop => loop.Count));
         var diag = new TraceDiagnostics
         {
             Params = p,
