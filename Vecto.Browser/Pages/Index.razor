@@ -112,6 +112,10 @@
                         <div class="advanced-inside">
                             <label>Seed <input type="number" @bind="seed" /></label>
                             <label class="check-option"><input type="checkbox" @bind="curveFitting" /> Kurva Bézier</label>
+                            @if (curveFitting)
+                            {
+                                <label class="check-option"><input type="checkbox" @bind="optimizeNodes" /> Minimalkan titik Bézier</label>
+                            }
                             @if (!curveFitting)
                             {
                                 <label>Polygon epsilon <input type="number" step="0.01" @bind="polygonEpsilon" /></label>
@@ -175,6 +179,7 @@
     private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
     private bool curveFitting = true;
+    private bool optimizeNodes = true;
     private double polygonEpsilon = -1;
 
     private async Task ResetAsync()
@@ -316,6 +321,7 @@
                 MaxColors = chosenMaxColors,
                 Seed = seed,
                 CurveFitting = curveFitting,
+                OptimizeNodes = optimizeNodes,
                 PolygonEpsilon = polygonEpsilon
             };
             var traced = Tracer.Trace(image, options);
@@ -331,7 +337,10 @@
                 ? $" · pembersihan {c.ChangedPixels:N0} piksel"
                 : "";
             string shapeInfo = shapeMode == ShapeMode.Stacked ? "Stacked Shapes" : "Berdampingan";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
+            string fitStats = traced.Diagnostics.FittedChainNodes > 0
+                ? $" · Segmen Bézier {traced.Diagnostics.FittedChainNodes:N0} → {traced.Diagnostics.OptimizedChainNodes:N0}"
+                : "";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors";
             previewZoom = 100;
             status = "SVG selesai dibuat.";
         }

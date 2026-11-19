@@ -58,3 +58,20 @@ Auto Palette and tracing read the exact same prepared raster.
 ## Stacked Shapes (C#)
 
 In DikaTrace, choose Susunan bentuk = Bertumpuk (Stacked) to reconstruct opaque nested shapes as overlapping SVG groups. Planar/Berdampingan remains the default for backward compatibility. Stack mode reuses the existing palette, segmentation, shared-edge graph, curve fitting and subpixel geometry; it removes only nested opaque holes for which all enclosed foreground regions can be painted on top. True transparent holes remain. SVG contains independent top-level path elements in painter order, with NO <g> groups. Each visible region can be edited independently without ungrouping. This is geometry-based stacking, not semantic object reconstruction: separate adjacent shapes are not automatically merged and completely unseen objects cannot be inferred. Raster round-trip verification is recommended on real artwork.
+
+
+## Bézier minimum nodes (independent C# optimization)
+
+The fitted, shared-edge Bézier chains now pass through a native CPU-only
+post-processing optimizer, enabled by default under Advanced Settings
+(Minimalkan titik Bézier). Adjacent smooth cubics are merged only when a
+single least-squares cubic maintains both endpoint tangents, avoids sharp
+or protected corners, and stays within a bidirectional sampled outline
+error budget derived from Detail (0.3–0.9 px). No extra image upload or
+GPU processing occurs. Diagnostics compare before/after segment counts.
+
+Unlike ALIV's Python/PyTorch differentiable rendering, this stage does NOT
+perform raster-gradient descent or try to reconstruct semantic objects.
+It reduces redundant curve segments rather than eliminating disconnected
+regions. There is no guaranteed node reduction for every complex logo.
+Planar and Stacked remain supported, and exported SVG paths stay ungrouped.

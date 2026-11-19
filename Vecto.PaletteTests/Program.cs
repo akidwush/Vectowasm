@@ -175,3 +175,66 @@ Check(Rasterizer.Render(transparentStack.Document, supersample: 1)
     .GetPixel(20, 20).A == 0, "Transparent holes remain transparent");
 Check(SvgWriter.Write(Tracer.Trace(sampleImage, StackingOptions(ShapeMode.Stacked)).Document) == stackedSvg,
     "Stacked output remains deterministic");
+
+
+// Segment minimization: splitting one known smooth cubic must be reversible
+// without adding new paths, shifting sharp corners or adding group nodes.
+static (CubicBezier First, CubicBezier Second) SplitHalf(CubicBezier c)
+{
+    static Vec2 Midpoint(Vec2 x, Vec2 y) => (x + y) * 0.5;
+    var a = Midpoint(c.P0, c.P1);
+    var b = Midpoint(c.P1, c.P2);
+    var d = Midpoint(c.P2, c.P3);
+    var e = Midpoint(a, b);
+    var f = Midpoint(b, d);
+    var center = Midpoint(e, f);
+    return (new CubicBezier(c.P0, a, e, center),
+            new CubicBezier(center, f, d, c.P3));
+}
+var smooth = new CubicBezier(
+    new Vec2(0, 0), new Vec2(20, 0),
+    new Vec2(20, 20), new Vec2(40, 20));
+var halves = SplitHalf(smooth);
+var mergedSmooth = BezierNodeOptimizer.Reduce(
+    new[] { halves.First, halves.Second }, null, 1.0);
+Check(mergedSmooth.Count == 1,
+    "Two smooth consecutive cubic segments become one");
+Check(mergedSmooth[0].P0 == smooth.P0 &&
+      mergedSmooth[0].P3 == smooth.P3,
+    "Node minimization preserves chain endpoints");
+
+var corner = BezierNodeOptimizer.Reduce(
+    new[] { CubicBezier.Line(new Vec2(0, 0), new Vec2(30, 0)),
+            CubicBezier.Line(new Vec2(30, 0), new Vec2(30, 30)) },
+    null, 1.0);
+Check(corner.Count == 2,
+    "Right-angle corner must not be simplified away");
+
+var pinned = BezierNodeOptimizer.Reduce(
+    new[] { CubicBezier.Line(new Vec2(0, 0), new Vec2(20, 0)),
+            CubicBezier.Line(new Vec2(20, 0), new Vec2(40, 0)) },
+    new HashSet<Vec2> { new Vec2(20, 0) }, 1.0);
+Check(pinned.Count == 2,
+    "Manually protected shared corner is never merged");
+
+var beforeReduction = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    CurveFitting = true, OptimizeNodes = false
+});
+var afterReduction = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    CurveFitting = true, OptimizeNodes = true
+});
+Check(beforeReduction.Diagnostics.OptimizedChainNodes ==
+      beforeReduction.Diagnostics.FittedChainNodes,
+    "Disabled node optimizer leaves curves unmodified");
+Check(afterReduction.Diagnostics.OptimizedChainNodes <=
+      afterReduction.Diagnostics.FittedChainNodes,
+    "Enabled node optimizer never increases segments");
+Check(afterReduction.Document.Regions.Count ==
+      beforeReduction.Document.Regions.Count,
+    "Curve simplification cannot remove or duplicate regions");
+Check(!SvgWriter.Write(afterReduction.Document).Contains("<g "),
+    "Optimized SVG still contains no groups");

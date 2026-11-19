@@ -29,6 +29,8 @@ public sealed class TraceOptions
     public DetailLevel Detail { get; set; } = DetailLevel.Medium;
     /// <summary>false → emit simplified polygons instead of fitted curves (debug/inspection).</summary>
     public bool CurveFitting { get; set; } = true;
+    /// <summary>Reduce redundant fitted cubic segments while preserving sharp corners.</summary>
+    public bool OptimizeNodes { get; set; } = true;
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>
     public double PolygonEpsilon { get; set; } = -1;
     public int Seed { get; set; } = 1;

@@ -1,0 +1,19 @@
+name: Minimal Bezier node optimization
+on:
+  pull_request:
+  push:
+    branches: [feat/dikatrace-minimal-bezier-nodes]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run Bézier, palette and stacked regression tests
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Compile DikaTrace Blazor WASM
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish

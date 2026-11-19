@@ -33,6 +33,8 @@ public sealed class TraceDiagnostics
     public int RegionCount { get; init; }
     public int ChainCount { get; init; }
     public int NodeCount { get; init; }
+    public int FittedChainNodes { get; init; }
+    public int OptimizedChainNodes { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -125,6 +127,7 @@ public static class Tracer
         // kept ramp lines are 1-2 px wide and low-contrast: sub-pixel refinement can't hold
         // their staircase, so let the smoothing move them further
         double smoothClamp = rampLines ? Math.Max(p.SmoothClamp, RampSmoothClamp) : p.SmoothClamp;
+        int fittedChainNodes = 0, optimizedChainNodes = 0;
         Parallel.ForEach(graph.Chains, new ParallelOptions { CancellationToken = ct }, chain =>
         {
             if (options.CurveFitting)
@@ -159,6 +162,17 @@ public static class Tracer
                         p.CornerRelocateMaxShift, p.AngleSnapDeg);
                 }
                 chain.Curve = BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);
+                System.Threading.Interlocked.Add(ref fittedChainNodes, chain.Curve.Count);
+                if (options.OptimizeNodes && chain.Curve.Count > 1)
+                {
+                    // Do not merge across protected structural corners. Guard
+                    // the replacement shape with a strict two-way pixel error.
+                    var protectedPins = corners.Select(i => chain.Points[i]).ToHashSet();
+                    double tolerance = Math.Clamp(Math.Sqrt(p.FitToleranceSq), 0.3, 0.9);
+                    chain.Curve = BezierNodeOptimizer.Reduce(
+                        chain.Curve, protectedPins, tolerance);
+                }
+                System.Threading.Interlocked.Add(ref optimizedChainNodes, chain.Curve.Count);
 
                 void Process(List<int> pins)
                 {
@@ -176,6 +190,8 @@ public static class Tracer
                 var segs = new List<CubicBezier>(pts.Count - 1);
                 for (int i = 0; i + 1 < pts.Count; i++) segs.Add(CubicBezier.Line(pts[i], pts[i + 1]));
                 chain.Curve = segs;
+                System.Threading.Interlocked.Add(ref fittedChainNodes, segs.Count);
+                System.Threading.Interlocked.Add(ref optimizedChainNodes, segs.Count);
             }
         });
         long fitMs = sw.ElapsedMilliseconds;
@@ -209,6 +225,8 @@ public static class Tracer
             RegionCount = seg.RegionCount,
             ChainCount = graph.Chains.Count,
             NodeCount = nodes,
+            FittedChainNodes = fittedChainNodes,
+            OptimizedChainNodes = optimizedChainNodes,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
