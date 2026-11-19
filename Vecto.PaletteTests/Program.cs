@@ -52,17 +52,15 @@ Check(AutoPaletteEstimator.Analyze(transparent).EstimatedInkCount == 1,
 Console.WriteLine("Adaptive palette estimator tests complete.");
 
 
-// Large-file cleanup policy. Encoded file length is separate from pixel size:
-// these synthetic RGBA tests deliberately do not have PNG/JPEG encoding.
+// All supported files pass through the same pixel quality guard.
+ // Tests use already-decoded RGBA to isolate the cleanup engine.
 var noisy = Bands(new Rgba32(231, 20, 19, 255));
 noisy.SetPixel(40, 50, new Rgba32(220, 31, 28, 255));
 byte[] before = (byte[])noisy.Pixels.Clone();
-var smallFile = PixelCompressor.Prepare(noisy, PixelCompressor.ThresholdBytes - 1);
-Check(!smallFile.Applied && ReferenceEquals(smallFile.Image, noisy),
-    "899 KB input bypasses pixel cleanup");
-var atThreshold = PixelCompressor.Prepare(noisy, PixelCompressor.ThresholdBytes);
-Check(atThreshold.Applied && atThreshold.ChangedPixels > 0,
-    "900 KB input automatically cleans small pixel variations");
+var optimized = PixelCompressor.Prepare(noisy);
+Check(optimized.Applied && optimized.ChangedPixels > 0,
+    "All image sizes can receive automatic safe pixel cleanup");
+var atThreshold = optimized;
 Check(atThreshold.Image.Width == noisy.Width && atThreshold.Image.Height == noisy.Height,
     "Pixel cleanup preserves width and height");
 Check(atThreshold.Image.GetPixel(40, 50).R == 231,
@@ -73,17 +71,44 @@ Check(noisy.Pixels.SequenceEqual(before),
 var stripe = Bands(new Rgba32(255, 255, 255, 255));
 for (int y = 0; y < stripe.Height; y++)
     stripe.SetPixel(91, y, new Rgba32(0, 0, 0, 255));
-var stripeResult = PixelCompressor.Prepare(stripe, PixelCompressor.ThresholdBytes + 1);
+var stripeResult = PixelCompressor.Prepare(stripe);
 Check(stripeResult.Image.GetPixel(91, 60).R == 0 &&
     stripeResult.Image.GetPixel(90, 60).R == 255,
     "High-contrast one-pixel black line is preserved");
 
 var semi = Bands(new Rgba32(20, 150, 90, 127));
-var semiResult = PixelCompressor.Prepare(semi, PixelCompressor.ThresholdBytes + 1);
+var semiResult = PixelCompressor.Prepare(semi);
 Check(semiResult.Image.Pixels.SequenceEqual(semi.Pixels),
     "Semi-transparent pixels are not modified");
 
-var repeatA = PixelCompressor.Prepare(noisy, PixelCompressor.ThresholdBytes);
-var repeatB = PixelCompressor.Prepare(noisy, PixelCompressor.ThresholdBytes);
+var repeatA = PixelCompressor.Prepare(noisy);
+var repeatB = PixelCompressor.Prepare(noisy);
 Check(repeatA.Image.Pixels.SequenceEqual(repeatB.Image.Pixels),
     "Pixel cleanup is deterministic");
+
+
+var gradient = new RasterImage(192, 128);
+for (int y = 0; y < gradient.Height; y++)
+    for (int x = 0; x < gradient.Width; x++)
+    {
+        byte v = (byte)Math.Round(x * 255.0 / (gradient.Width - 1));
+        gradient.SetPixel(x, y, new Rgba32(v, v, v, 255));
+    }
+var gradientCleaned = PixelCompressor.Prepare(gradient);
+Check(gradientCleaned.Image.Pixels.SequenceEqual(gradient.Pixels),
+    "Smooth gradient remains pixel-identical");
+
+var underThreshold = PixelCompressor.Prepare(noisy);
+Check(underThreshold.Applied && underThreshold.Image.GetPixel(40, 50).R == 231,
+    "Input below the old 900 KB threshold is optimized");
+
+var twoColorGraphic = Bands(new Rgba32(245, 245, 245, 255),
+    new Rgba32(13, 13, 13, 255));
+var edgeX = 96;
+var edgeOrig = twoColorGraphic.GetPixel(edgeX, 60);
+var edgePrepared = PixelCompressor.Prepare(twoColorGraphic).Image.GetPixel(edgeX, 60);
+Check(edgePrepared == edgeOrig,
+    "Automatic cleanup preserves sharp two-color boundary");
+Check(PixelCompressor.Prepare(twoColorGraphic).Image.Pixels
+        .SequenceEqual(twoColorGraphic.Pixels),
+    "Already clean artwork remains pixel-identical");

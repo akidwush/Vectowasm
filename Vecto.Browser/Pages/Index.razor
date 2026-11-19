@@ -69,7 +69,7 @@
                 <div class="panel-heading"><span class="step-index">1</span><h2 id="load-heading">Pilih gambar</h2></div>
                 <div class="panel-body">
                     <InputFile @key="fileInputKey" OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" aria-label="Pilih gambar PNG JPG WebP atau BMP" />
-                    <p class="help-text">PNG, JPG, WebP, BMP · Maksimum 20 MB / 8 MP<br/>File ≥900 KB: pembersihan piksel otomatis</p>
+                    <p class="help-text">PNG, JPG, WebP, BMP · Maksimum 20 MB / 8 MP<br/>Piksel dibersihkan otomatis sebelum tracing</p>
                     @if (!string.IsNullOrEmpty(inputUrl))
                     {
                         <div class="file-details"><strong>@sourceName</strong><span>@sourceSize</span></div>
@@ -255,8 +255,9 @@
             await Js.InvokeVoidAsync("vecto.afterPaint");
 
             var raster = await RasterDecoder.DecodeAsync(bytes, Js);
-            // File-size policy applies to encoded input bytes, never pixel dimensions.
-            var prepared = PixelCompressor.Prepare(raster, bytes.LongLength);
+            // All supported images go through quality-gated pixel preparation
+            // before Auto Palette and Vecto tracing; the original preview stays.
+            var prepared = PixelCompressor.Prepare(raster);
             var paletteEstimate = AutoPaletteEstimator.Analyze(prepared.Image);
             originalHash = FnvHash.Hex(raster.Pixels);
             preparedRaster = prepared.Applied ? prepared.Image : null;
@@ -265,8 +266,8 @@
             autoEstimate = paletteEstimate;
             sourceSize = $"{raster.Width} × {raster.Height} · {file.Size / 1024.0:N0} KB";
             status = prepared.Applied
-                ? $"Gambar siap. Pembersihan piksel: {prepared.ChangedPixels:N0} piksel disesuaikan. Warna terdeteksi: {paletteEstimate.EstimatedInkCount}."
-                : $"Gambar siap. Terdeteksi {paletteEstimate.EstimatedInkCount} warna utama.";
+                ? $"Gambar siap. {prepared.ChangedPixels:N0} piksel dibersihkan; {paletteEstimate.EstimatedInkCount} warna terdeteksi."
+                : $"Gambar siap. Piksel asli dipertahankan; {paletteEstimate.EstimatedInkCount} warna terdeteksi.";
             if (!string.IsNullOrEmpty(oldUrl))
                 await Js.InvokeVoidAsync("vecto.revoke", oldUrl);
         }
