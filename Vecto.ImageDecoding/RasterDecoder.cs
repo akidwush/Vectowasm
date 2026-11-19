@@ -6,8 +6,8 @@ using Vecto.Core;
 namespace Vecto.ImageDecoding;
 
 /// <summary>
-/// JPEG uses the original Vecto decoder, other raster formats use native browser
-/// image decode. Tracing, geometry and SVG generation remain C#.
+/// PNG uses managed C# pixel decoding and JPEG the original Vecto decoder.
+/// Unsupported PNG layouts, WebP, BMP and JPEG fallbacks use browser decode. Tracing, geometry and SVG generation remain C#.
 /// </summary>
 public static class RasterDecoder
 {
@@ -15,6 +15,14 @@ public static class RasterDecoder
 
     public static async ValueTask<RasterImage> DecodeAsync(byte[] encoded, IJSRuntime js)
     {
+        // Decode common PNGs byte-for-byte in C#, avoiding Canvas RGBA alpha
+        // premultiplication and browser-specific color-space conversions.
+        if (PngDecoder.TryDecode(encoded) is { } png)
+        {
+            Validate(png);
+            return png;
+        }
+
         if (JpegDecoder.IsJpeg(encoded) && JpegDecoder.TryDecode(encoded) is { } jpeg)
         {
             Validate(jpeg);
