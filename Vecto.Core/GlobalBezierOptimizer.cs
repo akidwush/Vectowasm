@@ -25,6 +25,9 @@ public static class GlobalBezierOptimizer
         double maxDeviationPx)
     {
         var original = baseline.ToArray();
+        // A very long single contour could exhaust a phone's CPU budget.
+        // Leave the established local reducer to handle this case.
+        if (original.Length > 1024) return original.ToList();
         if (original.Length < 2 || !double.IsFinite(maxDeviationPx)
             || maxDeviationPx <= 0) return original.ToList();
 

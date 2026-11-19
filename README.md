@@ -83,9 +83,11 @@ When "Minimalkan titik Bézier" is enabled, DikaTrace now compares the
 existing pairwise reducer against a bounded shortest-path (dynamic
 programming) candidate for each already-fitted shared edge. The DP
 selects the fewest cubic segments across windows of up to 72 source
-segments, with candidate spans of at most eight. It can absorb short
+segments, with candidate spans of at most eight. For a single chain
+longer than 1,024 fitted segments, the proven pairwise reducer is used
+to keep browser CPU cost bounded. It can absorb short
 line segments between smooth cubics. It fits each candidate with
-least-squares handles, two Newton parameter updates, and bidirectional
+least-squares handles, up to six Newton parameter updates, and bidirectional
 curve-distance checks against the unchanged original contour.
 Protected true corners and graph junctions are not crossed.
 The multiscale turn guard looks roughly 5 px to either side of
