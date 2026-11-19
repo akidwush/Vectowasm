@@ -140,9 +140,9 @@ public static class GlobalBezierOptimizer
         if (!LeastSquares(data, u, startTangent, endTangent,
             chordLength, out var candidate)) return false;
 
-        // Limited Schneider-style Newton reparameterization of the point
+        // Bounded Schneider-style Newton reparameterization of the point
         // locations, while retaining monotone order of the original samples.
-        for (int iteration = 0; iteration < 2; iteration++)
+        for (int iteration = 0; iteration < 6; iteration++)
         {
             var refined = (double[])u.Clone();
             for (int i = 1; i < u.Length - 1; i++)
