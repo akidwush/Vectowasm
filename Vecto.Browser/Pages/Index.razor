@@ -55,7 +55,7 @@
           <label class="check"><input type="checkbox" @bind="adaptiveColors" /> Deteksi otomatis jumlah warna minimum</label>
           @if (adaptiveColors)
           {
-            <p class="meta">@(autoEstimate is null ? "Upload gambar untuk estimasi warna." : $"Estimasi {autoEstimate.EstimatedInkCount} warna utama · batas tracing {autoEstimate.RecommendedMaxColors} (termasuk slot cadangan jika dibutuhkan).")</p>
+            <p class="meta">@(autoEstimate is null ? "Upload gambar untuk estimasi warna." : $"Estimasi {autoEstimate.Value.EstimatedInkCount} warna utama · batas tracing {autoEstimate.Value.RecommendedMaxColors} (termasuk slot cadangan jika dibutuhkan).")</p>
           }
           else
           {
