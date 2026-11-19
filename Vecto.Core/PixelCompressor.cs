@@ -1,7 +1,7 @@
 namespace Vecto.Core;
 
 /// <summary>
-/// Conservative in-memory pixel cleanup for large encoded images. Only pixels
+/// Conservative in-memory pixel cleanup for all decoded images. Only pixels
 /// safely inside locally flat, opaque regions are snapped to a frequently
 /// observed source color. Isolated low-contrast defects may be repaired.
 /// Pixel dimensions, transparency, high-contrast edges, and the uploaded bytes
@@ -9,20 +9,20 @@ namespace Vecto.Core;
 /// </summary>
 public static class PixelCompressor
 {
-    // A displayed KB in the browser is 1,024 bytes.
-    public const long ThresholdBytes = 900L * 1024L;
     private const int ColorBins = 4096;
     private const int AnchorLimit = 48;
-    private const int FlatTolerance = 26;
-    private const int SnapMaxDistanceSq = 625; // <= 25 RGB Euclidean units
+    private const int FlatTolerance = 20;
+    private const int SnapMaxDistanceSq = 324; // <= 18 RGB Euclidean units
     private const int CompetitionMarginSq = 144;
 
-    public static PixelCompressionResult Prepare(RasterImage image, long encodedBytes)
+    public static PixelCompressionResult Prepare(RasterImage image)
     {
-        if (encodedBytes < ThresholdBytes)
-            return new PixelCompressionResult(image, false, 0, 0);
-
+        // Every image follows this pipeline, independent of encoded byte size.
+        // No-op on tiny rasters, gradients and photographs when the evidence
+        // for safe flat-color cleanup is insufficient.
         int width = image.Width, height = image.Height;
+        if (width < 3 || height < 3)
+            return new PixelCompressionResult(image, false, 0, 0);
         byte[] src = image.Pixels;
         var counts = new int[ColorBins];
         var sumsR = new long[ColorBins];
@@ -47,8 +47,9 @@ public static class PixelCompressor
             }
         }
 
-        // Ignore weak histogram modes. On a photograph, no global color may
-        // have meaningful support: no forced three-color simplification occurs.
+        // Confirm that this looks like graphic artwork, not a photo or a
+        // smooth gradient. A few stable bins must dominate the flat interiors.
+        // We do not force any artwork to a fixed 2/3/16-color palette.
         int minCount = Math.Max(32, totalFlat / 2500);
         var candidates = new List<int>();
         for (int b = 0; b < ColorBins; b++)
@@ -59,6 +60,12 @@ public static class PixelCompressor
             int c = counts[b].CompareTo(counts[a]);
             return c != 0 ? c : a.CompareTo(b);
         });
+        long topEight = 0;
+        for (int k = 0; k < Math.Min(8, candidates.Count); k++)
+            topEight += counts[candidates[k]];
+        if (totalFlat < Math.Max(64, width * (long)height / 10)
+            || topEight < totalFlat * 55L / 100L)
+            return new PixelCompressionResult(image, false, 0, 0);
 
         var anchors = new List<(byte R, byte G, byte B)>(AnchorLimit);
         foreach (int b in candidates)
@@ -67,6 +74,20 @@ public static class PixelCompressor
             byte r = (byte)((sumsR[b] + n / 2) / n);
             byte g = (byte)((sumsG[b] + n / 2) / n);
             byte bl = (byte)((sumsB[b] + n / 2) / n);
+            // Nearby histogram bins often represent one true print color.
+            // Keep the most supported of those bins as its anchor.
+            var lab = Oklab.FromRgb(r, g, bl);
+            bool duplicate = false;
+            foreach (var existing in anchors)
+            {
+                if (Oklab.DistSq(lab,
+                    Oklab.FromRgb(existing.R, existing.G, existing.B)) < 0.0016f)
+                {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
             anchors.Add((r, g, bl));
             if (anchors.Count == AnchorLimit) break;
         }
@@ -118,9 +139,26 @@ public static class PixelCompressor
             }
         }
 
+        // Hard quality cap. Even if a future tuning change becomes too
+        // aggressive, prefer exact original pixels over unintended drift.
+        long sumChannelError = 0;
+        int maxChannelError = 0;
+        for (int i = 0; i < src.Length; i += 4)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                int error = Math.Abs(src[i + c] - dst[i + c]);
+                sumChannelError += error;
+                if (error > maxChannelError) maxChannelError = error;
+            }
+        }
+        if (maxChannelError > 24 ||
+            sumChannelError > (long)width * height * 3 * 3)
+            return new PixelCompressionResult(image, false, 0, anchors.Count);
+
         return new PixelCompressionResult(
             changed == 0 ? image : new RasterImage(width, height, dst),
-            true,
+            changed > 0,
             changed,
             anchors.Count);
     }
@@ -159,7 +197,7 @@ public static class PixelCompressor
         int deviation = Math.Max(Math.Abs(px[i] - mr),
             Math.Max(Math.Abs(px[i + 1] - mg), Math.Abs(px[i + 2] - mb)));
         // Do not erase isolated black highlights, white holes or red accents.
-        if (deviation < 8 || deviation > 55) return false;
+        if (deviation < 8 || deviation > 24) return false;
         r = (byte)mr; g = (byte)mg; b = (byte)mb;
         return true;
     }
