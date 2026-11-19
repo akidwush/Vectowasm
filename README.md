@@ -28,3 +28,7 @@ Files are processed in the browser and never intentionally uploaded to a remote 
 Upload a PNG/JPG/WebP/BMP and Vecto automatically estimates the useful number of distinct inks before invoking the original C# tracer. The UI does not ask users to choose 7, 14, 15, 24 or another hard-coded count; Style and Detail remain configurable. More colors are preserved when they are supported by input evidence.
 
 This is a deterministic, MDL-inspired **heuristic**, not a guarantee of mathematically minimal colors or superior SVG fidelity. See [AUTO_PALETTE.md](AUTO_PALETTE.md) for design details, tests and QA requirements.
+
+## DikaTrace Classic Studio UI
+
+The public interface is branded **DikaTrace**, with a classic early-2000s desktop wizard layout inspired by Vector Magic's historical interface (not an official Vector Magic product). Fully Automatic, Basic and Advanced modes, bitmap/vector/split preview, zoom, reset and SVG export use the unchanged Vecto C# tracing pipeline. The engine/project names and licensing are unchanged.
