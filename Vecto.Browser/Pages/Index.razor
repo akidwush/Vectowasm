@@ -21,7 +21,7 @@
     <main class="studio-layout">
         <section class="preview-workspace" aria-label="Workspace gambar">
             <div class="workspace-toolbar">
-                <div class="toolbar-title"><span class="toolbar-symbol">▧</span> Image Preview</div>
+                <div class="toolbar-title"><span class="toolbar-symbol">▧</span> Image Preview <button type="button" class="new-image-button" @onclick="ResetAsync" disabled="@(sourceBytes is null || running)">New Image</button></div>
                 <div class="preview-switch" role="group" aria-label="Mode pratinjau">
                     <button type="button" class="tool-button @(previewMode == "original" ? "is-selected" : "")" @onclick="ShowOriginal">Bitmap</button>
                     <button type="button" class="tool-button @(previewMode == "vector" ? "is-selected" : "")" @onclick="ShowVector" disabled="@(svgUrl is null)">Vector</button>
@@ -90,7 +90,7 @@
                     <div class="input-dropzone">
                         <div class="file-icon" aria-hidden="true">▧</div>
                         <div class="upload-label"><strong>Select Bitmap Image</strong><span>PNG, JPG, WEBP or BMP</span></div>
-                        <InputFile OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" aria-label="Choose image to vectorize" />
+                        <InputFile @key="fileInputKey" OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" aria-label="Choose image to vectorize" />
                     </div>
                     @if (!string.IsNullOrWhiteSpace(sourceSize) && sourceBytes is not null)
                     {
@@ -196,40 +196,12 @@
     private int previewZoom = 100;
     private bool showDiagnostics;
     private int fileInputKey;
-    private int zoom = 100;
-    private string previewMode = "bitmap";
-    private string wizardMode = "automatic";
-    private string ZoomStyle => "transform: scale(" + (zoom / 100.0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ");";
     private ImageStyle style = ImageStyle.Auto;
     private DetailLevel detail = DetailLevel.Medium;
     private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
     private bool curveFitting = true;
     private double polygonEpsilon = -1;
-
-    private void SetPreviewMode(string value)
-    {
-        if (value != "bitmap" && svgUrl is null) return;
-        previewMode = value;
-    }
-
-    private void SelectWizardMode(string value)
-    {
-        wizardMode = value;
-        if (value == "automatic")
-        {
-            style = ImageStyle.Auto;
-            detail = DetailLevel.Medium;
-            seed = 1;
-            curveFitting = true;
-            polygonEpsilon = -1;
-        }
-        status = value == "automatic" ? "Mode otomatis aktif. Jumlah warna ditentukan dari gambar." : "Mode " + value + " aktif. Atur opsi lalu Trace Image.";
-    }
-
-    private void ZoomIn() => zoom = Math.Min(200, zoom + 25);
-    private void ZoomOut() => zoom = Math.Max(50, zoom - 25);
-    private void ZoomFit() => zoom = 100;
 
     private async Task ResetAsync()
     {
@@ -243,8 +215,8 @@
         lastDiagnostics = "";
         inputHash = "";
         svgHash = "";
-        previewMode = "bitmap";
-        zoom = 100;
+        previewMode = "original";
+        previewZoom = 100;
         fileInputKey++;
         await ClearUrl(true);
         await ClearUrl(false);
@@ -267,8 +239,7 @@
             previewMode = "original";
             previewZoom = 100;
             svgText = null;
-            previewMode = "bitmap";
-            zoom = 100;
+
             await ClearUrl(true);
             await ClearUrl(false);
             var file = e.File;
@@ -295,7 +266,7 @@
                 _ => "image/png"
             };
             inputUrl = await Js.InvokeAsync<string>("vecto.createUrl", bytes, mime);
-            status = $"Gambar siap. DikaTrace mendeteksi {paletteEstimate.EstimatedInkCount} warna utama. Klik Trace Image.";
+            status = $"Gambar siap. DikaTrace mendeteksi {paletteEstimate.EstimatedInkCount} warna utama. Klik Vectorize Image.";
         }
         catch (Exception ex)
         {
@@ -337,9 +308,8 @@
             inputHash = FnvHash.Hex(image.Pixels);
             resultSize = $"{System.Text.Encoding.UTF8.GetByteCount(result) / 1024.0:N0} KB";
             lastDiagnostics = $"Deteksi otomatis · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
-            previewMode = "compare";
-            zoom = 100;
-            status = "Tracing selesai. Lihat perbandingan Bitmap / Vector atau simpan SVG.";
+            previewZoom = 100;
+            status = "Selesai! Bandingkan Bitmap dan Vector, lalu simpan SVG.";
         }
         catch (Exception ex)
         {
