@@ -75,3 +75,31 @@ perform raster-gradient descent or try to reconstruct semantic objects.
 It reduces redundant curve segments rather than eliminating disconnected
 regions. There is no guaranteed node reduction for every complex logo.
 Planar and Stacked remain supported, and exported SVG paths stay ungrouped.
+
+
+## Bounded global Bézier minimization (C#)
+
+When "Minimalkan titik Bézier" is enabled, DikaTrace now compares the
+existing pairwise reducer against a bounded shortest-path (dynamic
+programming) candidate for each already-fitted shared edge. The DP
+selects the fewest cubic segments across windows of up to 72 source
+segments, with candidate spans of at most eight. For a single chain
+longer than 1,024 fitted segments, the proven pairwise reducer is used
+to keep browser CPU cost bounded. It can absorb short
+line segments between smooth cubics. It fits each candidate with
+least-squares handles, up to six Newton parameter updates, and bidirectional
+curve-distance checks against the unchanged original contour.
+Protected true corners and graph junctions are not crossed.
+The multiscale turn guard looks roughly 5 px to either side of
+suspect joins rather than reacting only to a 1-px staircase.
+The existing pairwise result is retained unless global DP makes an
+actual improvement in number of segments. Planar and Stacked modes
+share each optimized edge and output separate top-level SVG paths with
+no groups.
+
+The existing preprocessing, color quantization, topology, and boundary
+extraction code is intentionally unchanged. This is an experimental,
+bounded per-chain optimization, NOT a fully global resegmentation of
+raw pixels or ALIV/DiffVG differentiable raster fitting. No claim of a
+364-segment result or identical IoU/SSIM on arbitrary art is made until
+the specific source raster has been benchmarked.

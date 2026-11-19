@@ -238,3 +238,93 @@ Check(afterReduction.Document.Regions.Count ==
     "Curve simplification cannot remove or duplicate regions");
 Check(!SvgWriter.Write(afterReduction.Document).Contains("<g "),
     "Optimized SVG still contains no groups");
+
+
+// Bounded global DP: choose curve intervals, preserving the original boundary.
+// Tests use synthetic cubic geometry independent of raster segmentation.
+static (CubicBezier A, CubicBezier B) Bisect(CubicBezier b)
+{
+    static Vec2 M(Vec2 a, Vec2 c) => (a + c) * 0.5;
+    Vec2 p01 = M(b.P0, b.P1), p12 = M(b.P1, b.P2), p23 = M(b.P2, b.P3);
+    Vec2 p012 = M(p01, p12), p123 = M(p12, p23), p = M(p012, p123);
+    return (new CubicBezier(b.P0, p01, p012, p),
+            new CubicBezier(p, p123, p23, b.P3));
+}
+var underlying = new CubicBezier(
+    new Vec2(4, 4), new Vec2(26, 2),
+    new Vec2(35, 44), new Vec2(64, 38));
+var pieces = new List<CubicBezier> { underlying };
+for (int level = 0; level < 3; level++)
+{
+    var divided = new List<CubicBezier>();
+    foreach (var piece in pieces)
+    {
+        var pair = Bisect(piece);
+        divided.Add(pair.A); divided.Add(pair.B);
+    }
+    pieces = divided;
+}
+var dpResult = GlobalBezierOptimizer.Reduce(pieces, null, 0.5);
+Check(dpResult.Count == 1,
+    "Global DP reconstitutes eight smooth cubic fragments into one");
+Check(dpResult[0].P0 == underlying.P0 &&
+      dpResult[0].P3 == underlying.P3,
+    "Global DP keeps exact chain endpoints");
+var dpAgain = GlobalBezierOptimizer.Reduce(pieces, null, 0.5);
+Check(dpResult.SequenceEqual(dpAgain),
+    "Global DP is deterministic");
+
+var withCorner = new[]
+{
+    CubicBezier.Line(new Vec2(0, 0), new Vec2(30, 0)),
+    CubicBezier.Line(new Vec2(30, 0), new Vec2(30, 30))
+};
+Check(GlobalBezierOptimizer.Reduce(withCorner, null, 0.8).Count == 2,
+    "Multiscale corner guard keeps a genuine 90-degree tip");
+Check(GlobalBezierOptimizer.Reduce(withCorner,
+    new HashSet<Vec2> { new Vec2(30, 0) }, 0.8).Count == 2,
+    "Global DP does not cross pinned corners");
+
+var stairs = new List<CubicBezier>();
+var jogs = new []
+{
+    new Vec2(0, 0), new Vec2(5, 0.10), new Vec2(10, -0.08),
+    new Vec2(15, 0.12), new Vec2(20, -0.10),
+    new Vec2(25, 0.08), new Vec2(30, 0)
+};
+for (int i = 1; i < jogs.Length; i++)
+    stairs.Add(CubicBezier.Line(jogs[i - 1], jogs[i]));
+var stairsReduced = GlobalBezierOptimizer.Reduce(stairs, null, 0.5);
+Check(stairsReduced.Count < stairs.Count,
+    "Global DP smooths low-amplitude micro-jogs across several L spans");
+
+var noGlobal = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    CurveFitting = true, OptimizeNodes = false
+});
+var withGlobal = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    CurveFitting = true, OptimizeNodes = true
+});
+Check(withGlobal.Diagnostics.OptimizedChainNodes <=
+      noGlobal.Diagnostics.FittedChainNodes,
+    "Global simplification never increases total SVG curve segments");
+Check(withGlobal.Document.Regions.Count == noGlobal.Document.Regions.Count &&
+      !SvgWriter.Write(withGlobal.Document).Contains("<g "),
+    "Global simplification leaves topology and ungrouped stacked paths intact");
+
+var withoutRaster = Rasterizer.Render(noGlobal.Document, supersample: 1);
+var withRaster = Rasterizer.Render(withGlobal.Document, supersample: 1);
+int changedInFixture = 0;
+for (int i = 0; i < withRaster.Pixels.Length; i += 4)
+{
+    if (withRaster.Pixels[i] != withoutRaster.Pixels[i] ||
+        withRaster.Pixels[i + 1] != withoutRaster.Pixels[i + 1] ||
+        withRaster.Pixels[i + 2] != withoutRaster.Pixels[i + 2] ||
+        withRaster.Pixels[i + 3] != withoutRaster.Pixels[i + 3])
+        changedInFixture++;
+}
+Check(changedInFixture <= 80,
+    "Global optimizer stays within 2 percent raster change in nested fixture");

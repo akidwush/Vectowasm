@@ -1,0 +1,19 @@
+name: C# bounded global Bezier DP
+on:
+  pull_request:
+  push:
+    branches: [feat/dikatrace-bounded-global-bezier-dp]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run Global DP and existing regression tests
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Compile DikaTrace Blazor WASM
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish

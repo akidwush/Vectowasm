@@ -340,6 +340,8 @@
             string fitStats = traced.Diagnostics.FittedChainNodes > 0
                 ? $" · Segmen Bézier {traced.Diagnostics.FittedChainNodes:N0} → {traced.Diagnostics.OptimizedChainNodes:N0}"
                 : "";
+            if (traced.Diagnostics.GlobalReducedChains > 0)
+                fitStats += $" · DP global unggul di {traced.Diagnostics.GlobalReducedChains:N0} rantai";
             lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors";
             previewZoom = 100;
             status = "SVG selesai dibuat.";
