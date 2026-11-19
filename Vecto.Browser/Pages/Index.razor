@@ -2,75 +2,209 @@
 @inject IJSRuntime Js
 @implements IAsyncDisposable
 
-<PageTitle>Vecto • C# WebAssembly</PageTitle>
-<main class="shell">
-  <header class="top">
-    <div class="eyebrow">NEXORA / LOCAL VECTOR ENGINE</div>
-    <h1>Vecto <span>WASM</span></h1>
-    <p>Mesin C# asli berjalan di browser. Gambar tidak diunggah ke server.</p>
+<PageTitle>DikaTrace — Classic Vector Studio</PageTitle>
+
+<main class="desktop-shell">
+  <header class="window-title">
+    <span class="brand-mark" aria-hidden="true">D</span>
+    <div class="window-name"><strong>DikaTrace</strong><span>Classic Vector Studio</span></div>
+    <span class="window-version">WEB EDITION · 1.0</span>
   </header>
-  <div class="columns">
-    <section class="panel">
-      <h2>01 — Masukkan gambar</h2>
-      <div class="upload">
-        <InputFile OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" />
-        <p>PNG • JPG • WebP • BMP · maksimal 20 MB / 8 megapiksel</p>
+
+  <div class="app-menu">
+    <span class="menu-label">BITMAP → VECTOR</span>
+    <span class="menu-separator"></span>
+    <span class="menu-hint">C# WebAssembly · proses lokal di browser</span>
+  </div>
+
+  <nav class="wizard-progress" aria-label="Tahapan konversi">
+    <span class="milestone @(sourceBytes is null ? "current" : "complete")"><b>1</b> Buka Gambar</span>
+    <span class="milestone @(sourceBytes is not null && svgUrl is null ? "current" : sourceBytes is null ? "" : "complete")"><b>2</b> Pengaturan</span>
+    <span class="milestone @(svgUrl is not null ? "complete" : "")"><b>3</b> Pratinjau</span>
+    <span class="milestone @(svgUrl is not null ? "current" : "")"><b>4</b> Simpan SVG</span>
+  </nav>
+
+  <div class="workspace">
+    <section class="preview-pane" aria-label="Area pratinjau gambar">
+      <div class="pane-heading">
+        <div class="pane-title"><span class="pane-icon" aria-hidden="true">▧</span> Image Preview</div>
+        <div class="view-tabs" role="group" aria-label="Mode pratinjau">
+          <button type="button" class="view-tab @(previewMode == "bitmap" ? "selected" : "")" @onclick='() => SetPreviewMode("bitmap")' disabled="@(inputUrl is null)">Bitmap</button>
+          <button type="button" class="view-tab @(previewMode == "vector" ? "selected" : "")" @onclick='() => SetPreviewMode("vector")' disabled="@(svgUrl is null)">Vector</button>
+          <button type="button" class="view-tab @(previewMode == "compare" ? "selected" : "")" @onclick='() => SetPreviewMode("compare")' disabled="@(svgUrl is null)">Split</button>
+        </div>
       </div>
-      @if (!string.IsNullOrEmpty(inputUrl))
-      {
-        <div class="image-frame"><img src="@inputUrl" alt="Gambar masukan" /></div>
-        <p class="meta">@sourceName · @sourceSize</p>
-      }
-      <h2>02 — Pengaturan vektorisasi</h2>
-      <p class="meta">Jumlah warna dideteksi otomatis dari gambar. Engine menjaga warna desain yang berbeda dan menghindari warna palsu di tepi; tidak ada preset jumlah warna tetap.</p>
-      @if (autoEstimate is { } estimate)
-      {
-        <p class="meta">Estimasi warna utama: <strong>@estimate.EstimatedInkCount</strong>. Palet akhir dapat lebih sedikit setelah proses penggabungan.</p>
-      }
-      <div class="fields">
-        <label>Style
-          <select @bind="style">
-            <option value="Auto">Auto</option>
-            <option value="Crisp">Crisp</option>
-            <option value="Blended">Blended</option>
-            <option value="Photo">Photo</option>
-          </select>
-        </label>
-        <label>Detail
-          <select @bind="detail">
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-          </select>
-        </label>
-        <label>Seed <input type="number" @bind="seed" /></label>
-        <label class="check"><input type="checkbox" @bind="curveFitting" /> Bézier curve fitting</label>
-        @if (!curveFitting)
+
+      <div class="canvas-outer">
+        @if (previewMode == "compare" && svgUrl is not null && inputUrl is not null)
         {
-          <label>Polygon epsilon (-1 = auto) <input type="number" step="0.01" @bind="polygonEpsilon" /></label>
+          <div class="compare-view">
+            <div class="compare-panel">
+              <div class="canvas-subtitle">ORIGINAL BITMAP</div>
+              <div class="checker-canvas"><img src="@inputUrl" alt="Gambar bitmap original" style="@ZoomStyle" /></div>
+            </div>
+            <div class="compare-panel">
+              <div class="canvas-subtitle">VECTORIZED RESULT</div>
+              <div class="checker-canvas"><img src="@svgUrl" alt="Hasil gambar SVG" style="@ZoomStyle" /></div>
+            </div>
+          </div>
+        }
+        else if (previewMode == "vector" && svgUrl is not null)
+        {
+          <div class="single-canvas"><img src="@svgUrl" alt="Pratinjau vektor DikaTrace" style="@ZoomStyle" /></div>
+        }
+        else if (inputUrl is not null)
+        {
+          <div class="single-canvas"><img src="@inputUrl" alt="Gambar bitmap masukan" style="@ZoomStyle" /></div>
+        }
+        else
+        {
+          <div class="empty-preview">
+            <div class="empty-icon" aria-hidden="true"><span>◇</span><span>▧</span></div>
+            <strong>No image loaded</strong>
+            <p>Buka PNG, JPG, WebP, atau BMP lewat panel Wizard di samping.</p>
+          </div>
         }
       </div>
-      <button class="primary" disabled="@(sourceBytes is null || running)" @onclick="TraceAsync">@(running ? "Memproses di browser…" : "Buat SVG")</button>
-      <p class="status" role="status">@status</p>
-    </section>
-    <section class="panel">
-      <h2>03 — Hasil SVG</h2>
-      @if (!string.IsNullOrEmpty(svgUrl))
+
+      <div class="preview-toolbar">
+        <div class="zoom-controls" aria-label="Perbesaran pratinjau">
+          <button type="button" aria-label="Perkecil pratinjau" @onclick="ZoomOut" disabled="@(inputUrl is null || zoom <= 50)">−</button>
+          <span>@zoom%</span>
+          <button type="button" aria-label="Perbesar pratinjau" @onclick="ZoomIn" disabled="@(inputUrl is null || zoom >= 200)">+</button>
+          <button type="button" class="fit-button" @onclick="ZoomFit" disabled="@(inputUrl is null)">Fit</button>
+        </div>
+        <span class="source-info">@(inputUrl is null ? "No bitmap" : sourceName)</span>
+      </div>
+
+      @if (svgUrl is not null)
       {
-        <div class="image-frame"><img src="@svgUrl" alt="Hasil vektor SVG" /></div>
-        <p class="meta">@resultSize · @lastDiagnostics</p>
-        <p class="hash">Input RGBA FNV64: <code>@inputHash</code></p>
-        <p class="hash">Output SVG FNV64: <code>@svgHash</code></p>
-        <button class="primary" @onclick="DownloadSvg">Download SVG</button>
+        <div class="result-strip">
+          <span class="result-led" aria-hidden="true"></span>
+          <strong>Vectorization complete</strong>
+          <span>@resultSize</span>
+        </div>
       }
-      else
-      {
-        <div class="empty">Pratinjau SVG akan muncul di sini.</div>
-      }
-      <p class="footnote">Pemrosesan terjadi di browser. Gambar besar dapat membuat tab tidak responsif sementara.</p>
     </section>
+
+    <aside class="wizard-sidebar" aria-label="DikaTrace Wizard">
+      <div class="wizard-heading">
+        <strong>Wizard Mode</strong>
+        <span class="help-bubble" title="Mode otomatis paling praktis. Basic mengatur style dan detail; Advanced juga membuka opsi kurva dan seed.">?</span>
+      </div>
+
+      <div class="wizard-content">
+        <section class="wizard-block">
+          <div class="block-caption"><span class="step-dot">1</span> Load Image</div>
+          <div class="upload-box">
+            <label for="source-pick">Select bitmap file</label>
+            <InputFile @key="fileInputKey" id="source-pick" OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" class="source-picker" />
+            <small>PNG · JPG · WebP · BMP<br />Maks. 20 MB / 8 MP</small>
+          </div>
+          @if (sourceBytes is not null)
+          {
+            <div class="file-readout"><strong>@sourceName</strong><span>@sourceSize</span></div>
+          }
+        </section>
+
+        <section class="wizard-block">
+          <div class="block-caption"><span class="step-dot">2</span> Select Mode</div>
+
+          <button type="button" class="mode-option @(wizardMode == "automatic" ? "chosen" : "")" @onclick='() => SelectWizardMode("automatic")'>
+            <span class="mode-icon auto-icon" aria-hidden="true">✓</span>
+            <span class="mode-copy"><strong>Fully Automatic</strong><small>Deteksi warna &amp; tracing otomatis</small></span>
+            @if (wizardMode == "automatic") { <span class="option-tag">Selected</span> }
+          </button>
+          <button type="button" class="mode-option @(wizardMode == "basic" ? "chosen" : "")" @onclick='() => SelectWizardMode("basic")'>
+            <span class="mode-icon basic-icon" aria-hidden="true">▤</span>
+            <span class="mode-copy"><strong>Basic</strong><small>Atur jenis gambar &amp; detail</small></span>
+            @if (wizardMode == "basic") { <span class="option-tag">Selected</span> }
+          </button>
+          <button type="button" class="mode-option @(wizardMode == "advanced" ? "chosen" : "")" @onclick='() => SelectWizardMode("advanced")'>
+            <span class="mode-icon advanced-icon" aria-hidden="true">⚙</span>
+            <span class="mode-copy"><strong>Advanced</strong><small>Kontrol tambahan untuk tracing</small></span>
+            @if (wizardMode == "advanced") { <span class="option-tag">Selected</span> }
+          </button>
+        </section>
+
+        <section class="wizard-block palette-block">
+          <div class="block-caption"><span class="step-dot">3</span> Color Detection</div>
+          <div class="auto-palette-row">
+            <span class="palette-indicator" aria-hidden="true">●</span>
+            <div>
+              <strong>Automatic Palette</strong>
+              <small>Jumlah warna dideteksi dari gambar, tanpa batas preset 7/14/24.</small>
+            </div>
+          </div>
+          @if (autoEstimate is { } estimate)
+          {
+            <div class="palette-count">Terdeteksi <strong>@estimate.EstimatedInkCount</strong> warna utama <span>· palet akhir dapat berbeda</span></div>
+          }
+        </section>
+
+        @if (wizardMode is "basic" or "advanced")
+        {
+          <section class="wizard-block">
+            <div class="block-caption"><span class="step-dot">4</span> Image Settings</div>
+            <div class="settings-fields">
+              <label>Image Type
+                <select @bind="style">
+                  <option value="Auto">Automatic</option>
+                  <option value="Crisp">Hard Edges</option>
+                  <option value="Blended">Anti-Aliased</option>
+                  <option value="Photo">Photograph</option>
+                </select>
+              </label>
+              <label>Detail Level
+                <select @bind="detail">
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </label>
+              @if (wizardMode == "advanced")
+              {
+                <label>Seed
+                  <input type="number" @bind="seed" />
+                </label>
+                <label class="check-row"><input type="checkbox" @bind="curveFitting" /> Smooth Bézier Curves</label>
+                @if (!curveFitting)
+                {
+                  <label>Polygon Epsilon
+                    <input type="number" min="-1" step="0.01" @bind="polygonEpsilon" />
+                  </label>
+                }
+              }
+            </div>
+          </section>
+        }
+
+        <section class="wizard-block wizard-actions">
+          <button type="button" class="action-trace" disabled="@(sourceBytes is null || running)" @onclick="TraceAsync">
+            <span aria-hidden="true">▶</span> @(running ? "Vectorizing..." : "Trace Image")
+          </button>
+          <button type="button" class="action-export" disabled="@(svgUrl is null || running)" @onclick="DownloadSvg"><span aria-hidden="true">▣</span> Save SVG</button>
+        </section>
+      </div>
+    </aside>
   </div>
-  <footer>Vecto.Core C# asli · tanpa database · tanpa API tracing</footer>
+
+  <div class="bottom-bar">
+    <button type="button" class="back-button" disabled="@(sourceBytes is null || running)" @onclick="ResetAsync"><span aria-hidden="true">◀</span> Start Over</button>
+    <div class="status-note" role="status"><span class="status-led @(running ? "busy" : svgUrl is not null ? "done" : "")"></span>@status</div>
+    <span class="engine-label">DikaTrace · Local Engine</span>
+  </div>
+
+  @if (svgUrl is not null)
+  {
+    <details class="diagnostics">
+      <summary>Technical Details</summary>
+      <p>@lastDiagnostics</p>
+      <p>Input RGBA FNV64: <code>@inputHash</code></p>
+      <p>Output SVG FNV64: <code>@svgHash</code></p>
+    </details>
+  }
+  <footer class="page-footer">DikaTrace uses the original Vecto C# tracing engine. Semua proses gambar berjalan di perangkatmu.</footer>
 </main>
 
 @code {
@@ -87,12 +221,61 @@
     private string inputHash = "";
     private string svgHash = "";
     private bool running;
+    private int fileInputKey;
+    private int zoom = 100;
+    private string previewMode = "bitmap";
+    private string wizardMode = "automatic";
+    private string ZoomStyle => "transform: scale(" + (zoom / 100.0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ");";
     private ImageStyle style = ImageStyle.Auto;
     private DetailLevel detail = DetailLevel.Medium;
     private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
     private bool curveFitting = true;
     private double polygonEpsilon = -1;
+
+    private void SetPreviewMode(string value)
+    {
+        if (value != "bitmap" && svgUrl is null) return;
+        previewMode = value;
+    }
+
+    private void SelectWizardMode(string value)
+    {
+        wizardMode = value;
+        if (value == "automatic")
+        {
+            style = ImageStyle.Auto;
+            detail = DetailLevel.Medium;
+            seed = 1;
+            curveFitting = true;
+            polygonEpsilon = -1;
+        }
+        status = value == "automatic" ? "Mode otomatis aktif. Jumlah warna ditentukan dari gambar." : "Mode " + value + " aktif. Atur opsi lalu Trace Image.";
+    }
+
+    private void ZoomIn() => zoom = Math.Min(200, zoom + 25);
+    private void ZoomOut() => zoom = Math.Max(50, zoom - 25);
+    private void ZoomFit() => zoom = 100;
+
+    private async Task ResetAsync()
+    {
+        if (running) return;
+        sourceBytes = null;
+        sourceName = "image";
+        sourceSize = "";
+        resultSize = "";
+        svgText = null;
+        autoEstimate = null;
+        lastDiagnostics = "";
+        inputHash = "";
+        svgHash = "";
+        previewMode = "bitmap";
+        zoom = 100;
+        fileInputKey++;
+        await ClearUrl(true);
+        await ClearUrl(false);
+        status = "Pilih gambar untuk memulai.";
+    }
 
     private async Task LoadFile(InputFileChangeEventArgs e)
     {
@@ -101,6 +284,8 @@
             sourceBytes = null;
             autoEstimate = null;
             svgText = null;
+            previewMode = "bitmap";
+            zoom = 100;
             await ClearUrl(true);
             await ClearUrl(false);
             var file = e.File;
@@ -127,7 +312,7 @@
                 _ => "image/png"
             };
             inputUrl = await Js.InvokeAsync<string>("vecto.createUrl", bytes, mime);
-            status = $"Gambar siap. Auto mendeteksi {paletteEstimate.EstimatedInkCount} warna utama (maksimum tracing {paletteEstimate.RecommendedMaxColors}).";
+            status = $"Gambar siap. DikaTrace mendeteksi {paletteEstimate.EstimatedInkCount} warna utama. Klik Trace Image.";
         }
         catch (Exception ex)
         {
@@ -141,7 +326,7 @@
     {
         if (sourceBytes is null || running) return;
         running = true;
-        status = "Menjalankan Vecto.Core secara lokal…";
+        status = "DikaTrace sedang membuat vektor di browser…";
         await InvokeAsync(StateHasChanged);
         await Task.Yield();
         try
@@ -168,7 +353,9 @@
             inputHash = FnvHash.Hex(image.Pixels);
             resultSize = $"{System.Text.Encoding.UTF8.GetByteCount(result) / 1024.0:N0} KB";
             lastDiagnostics = $"Deteksi otomatis · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
-            status = "Selesai. Seluruh tracing berlangsung di browser.";
+            previewMode = "compare";
+            zoom = 100;
+            status = "Tracing selesai. Lihat perbandingan Bitmap / Vector atau simpan SVG.";
         }
         catch (Exception ex)
         {
