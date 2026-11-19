@@ -15,6 +15,8 @@ public enum DetailLevel { Low, Medium, High }
 
 public enum PaletteMode { Auto, FixedCount }
 
+public enum ShapeMode { Planar, Stacked }
+
 public sealed class TraceOptions
 {
     public PaletteMode PaletteMode { get; set; } = PaletteMode.Auto;
@@ -23,6 +25,7 @@ public sealed class TraceOptions
     /// <summary>Exact color count when <see cref="PaletteMode.FixedCount"/>.</summary>
     public int ColorCount { get; set; } = 12;
     public ImageStyle Style { get; set; } = ImageStyle.Auto;
+    public ShapeMode ShapeMode { get; set; } = ShapeMode.Planar;
     public DetailLevel Detail { get; set; } = DetailLevel.Medium;
     /// <summary>false → emit simplified polygons instead of fitted curves (debug/inspection).</summary>
     public bool CurveFitting { get; set; } = true;

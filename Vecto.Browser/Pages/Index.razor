@@ -85,6 +85,12 @@
                         <strong>@(autoEstimate is { } estimate ? $"{estimate.EstimatedInkCount} (otomatis)" : "Otomatis")</strong>
                     </div>
                     <div class="setting-grid">
+                        <label>Susunan bentuk
+                            <select @bind="shapeMode">
+                                <option value="Planar">Berdampingan</option>
+                                <option value="Stacked">Bertumpuk (Stacked)</option>
+                            </select>
+                        </label>
                         <label>Jenis gambar
                             <select @bind="style">
                                 <option value="Auto">Otomatis</option>
@@ -164,6 +170,7 @@
     private bool showDiagnostics;
     private int fileInputKey;
     private ImageStyle style = ImageStyle.Auto;
+    private ShapeMode shapeMode = ShapeMode.Planar;
     private DetailLevel detail = DetailLevel.Medium;
     private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
@@ -303,6 +310,7 @@
             var options = new TraceOptions
             {
                 Style = style,
+                ShapeMode = shapeMode,
                 Detail = detail,
                 PaletteMode = PaletteMode.Auto,
                 MaxColors = chosenMaxColors,
@@ -322,7 +330,8 @@
             string pixelInfo = pixelCompression is { Applied: true } c
                 ? $" · pembersihan {c.ChangedPixels:N0} piksel"
                 : "";
-            lastDiagnostics = $"Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
+            string shapeInfo = shapeMode == ShapeMode.Stacked ? "Stacked Shapes" : "Berdampingan";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes · {traced.Document.Palette.Count} colors";
             previewZoom = 100;
             status = "SVG selesai dibuat.";
         }

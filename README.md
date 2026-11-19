@@ -53,3 +53,8 @@ The browser Canvas API remains the fallback decoder for WebP, BMP and unsupporte
 encoded formats; the pixel-preparation stage itself runs on RGBA in .NET C#
 to avoid redundant Canvas encode/decode and unnecessary lossy recompression.
 Auto Palette and tracing read the exact same prepared raster.
+
+
+## Stacked Shapes (C#)
+
+In DikaTrace, choose Susunan bentuk = Bertumpuk (Stacked) to reconstruct opaque nested shapes as overlapping SVG groups. Planar/Berdampingan remains the default for backward compatibility. Stack mode reuses the existing palette, segmentation, shared-edge graph, curve fitting and subpixel geometry; it removes only nested opaque holes for which all enclosed foreground regions can be painted on top. True transparent holes remain. SVG uses editable group IDs dikatrace-layer-N. This is geometry-based stacking, not semantic object reconstruction: separate adjacent shapes are not automatically merged and completely unseen objects cannot be inferred. Raster round-trip verification is recommended on real artwork.
