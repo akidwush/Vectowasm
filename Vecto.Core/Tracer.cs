@@ -35,6 +35,7 @@ public sealed class TraceDiagnostics
     public int NodeCount { get; init; }
     public int FittedChainNodes { get; init; }
     public int OptimizedChainNodes { get; init; }
+    public int GlobalReducedChains { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -128,6 +129,7 @@ public static class Tracer
         // their staircase, so let the smoothing move them further
         double smoothClamp = rampLines ? Math.Max(p.SmoothClamp, RampSmoothClamp) : p.SmoothClamp;
         int fittedChainNodes = 0, optimizedChainNodes = 0;
+        int globalReducedChains = 0;
         Parallel.ForEach(graph.Chains, new ParallelOptions { CancellationToken = ct }, chain =>
         {
             if (options.CurveFitting)
@@ -169,8 +171,19 @@ public static class Tracer
                     // the replacement shape with a strict two-way pixel error.
                     var protectedPins = corners.Select(i => chain.Points[i]).ToHashSet();
                     double tolerance = Math.Clamp(Math.Sqrt(p.FitToleranceSq), 0.3, 0.9);
-                    chain.Curve = BezierNodeOptimizer.Reduce(
+                    var pairwise = BezierNodeOptimizer.Reduce(
                         chain.Curve, protectedPins, tolerance);
+                    var global = GlobalBezierOptimizer.Reduce(
+                        chain.Curve, protectedPins, tolerance);
+                    // Never ship a higher segment count than the known-good
+                    // local optimizer. Both variants are independently bounded
+                    // against the unmodified fitted shared-edge geometry.
+                    if (global.Count < pairwise.Count)
+                    {
+                        chain.Curve = global;
+                        System.Threading.Interlocked.Increment(ref globalReducedChains);
+                    }
+                    else chain.Curve = pairwise;
                 }
                 System.Threading.Interlocked.Add(ref optimizedChainNodes, chain.Curve.Count);
 
@@ -227,6 +240,7 @@ public static class Tracer
             NodeCount = nodes,
             FittedChainNodes = fittedChainNodes,
             OptimizedChainNodes = optimizedChainNodes,
+            GlobalReducedChains = globalReducedChains,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
