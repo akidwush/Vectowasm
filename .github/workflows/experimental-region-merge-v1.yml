@@ -1,0 +1,70 @@
+name: Experimental Region Merge V1 quality gate
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Core/**'
+      - 'Vecto.Browser/**'
+      - 'Vecto.PaletteTests/**'
+      - '.github/workflows/experimental-region-merge-v1.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Validate opt-in and source-aware wiring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          options = Path('Vecto.Core/TraceOptions.cs').read_text()
+          tracer = Path('Vecto.Core/Tracer.cs').read_text()
+          refiner = Path('Vecto.Core/RegionMergeRefiner.cs').read_text()
+          ui = Path('Vecto.Browser/Pages/Index.razor').read_text()
+          assert 'public bool RegionMergeV1 { get; set; } = false;' in options
+          assert 'if (options.RegionMergeV1)' in tracer
+          assert 'RegionMergeRefiner.Refine(img, labels, palette' in tracer
+          assert 'RegionMergeV1 = regionMergeV1' in ui
+          assert 'MaxPaletteDistanceSquared' in refiner
+          assert 'if (r == neighbor || !eligible[r]' in refiner
+          assert 'labels[i] = toLabel[r]' in refiner
+          stacked = Path('Vecto.Core/StackedShapeBuilder.cs').read_text()
+          layering = Path('Vecto.Core/StackedLayerReasoner.cs').read_text()
+          metadata = Path('Vecto.Browser/Pages/SvgMetadataPanel.razor').read_text()
+          assert 'public bool StackedLayerReasoningV1 { get; set; } = false;' in options
+          assert 'options.StackedLayerReasoningV1' in tracer
+          assert 'StackedLayerReasoner.Schedule' in stacked
+          assert 'StackedLayerReasoner.CombineConsecutive' in stacked
+          assert 'StackedLayerReasoner.VerifyOrRevert' in stacked
+          assert 'frontOf' in layering and 'indegree' in layering
+          assert 'Rasterizer.Render(baseline' in layering
+          assert 'mismatch > 0' in layering
+          assert 'StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked' in ui
+          assert 'Layer Reasoning V1' in metadata
+          aa = Path('Vecto.Core/AntiAliasBandRefiner.cs').read_text()
+          assert 'public bool AntiAliasBandV1 { get; set; } = false;' in options
+          assert 'if (options.AntiAliasBandV1 && !aaSkipped)' in tracer
+          assert 'AntiAliasBandRefiner.Refine(img, labels, palette, ct)' in tracer
+          assert 'AntiAliasBandV1 = antiAliasBandV1' in ui
+          assert 'touchesVoid' in aa and 'MaxBandThickness' in aa
+          assert 'sourceCore * 4 >= members.Count' in aa
+          assert 'regionCount - after != accepted' in aa
+          assert 'Array.Copy(sourceLabels, labels, labels.Length)' in aa
+          assert 'Anti-alias Aware Segmentation V1' in metadata
+          print('PASS region + stacked + AA opt-ins, topology protection and safe rollback')
+          PY
+      - name: Run palette, topology and region merge regression tests
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Publish Blazor WebAssembly
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - name: Upload isolated A/B browser artifact (NOT deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: region-merge-v1-experimental-browser
+          path: publish/wwwroot
+          retention-days: 7

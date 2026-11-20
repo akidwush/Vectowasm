@@ -37,6 +37,16 @@ public sealed class TraceDiagnostics
     public int OptimizedChainNodes { get; init; }
     public int GlobalReducedChains { get; init; }
     public int LocalEdgeV3MovedPoints { get; init; }
+    public int RegionMergeV1Before { get; init; }
+    public int RegionMergeV1After { get; init; }
+    public int RegionMergeV1ChangedPixels { get; init; }
+    public int RegionMergeV1MergedRegions { get; init; }
+    public int RegionMergeV1RejectedByTopology { get; init; }
+    public int RegionMergeV1VerifiedCracks { get; init; }
+    public int RegionMergeV1VerifiedContours { get; init; }
+    public StackedLayerStats StackedLayers { get; init; }
+    public AntiAliasBandStats AntiAliasBands { get; init; }
+    public bool AntiAliasBandsSkipped { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -123,12 +133,41 @@ public static class Tracer
                 p.MinRegionArea = noisyMin;
             }
         }
+        // A whole-band AA experiment follows the existing near-pixel fringe
+        // and palette passes. It targets only residual intermediate-color
+        // strips between two stable paints. Skip real texture and exact flat
+        // palettes where gradients or genuine colors should not be erased.
+        AntiAliasBandStats antiAliasBands = default;
+        bool aaSkipped = options.AntiAliasBandV1 && (p.Textured || p.ExactPalette);
+        if (options.AntiAliasBandV1 && !aaSkipped)
+        {
+            antiAliasBands = AntiAliasBandRefiner.Refine(img, labels, palette, ct);
+            if (antiAliasBands.PixelsReassigned > 0)
+                palette = CompactPalette(img, labels, palette.Count);
+        }
+
+        // Run quality-gated region cleanup only after palette compaction and
+        // JPEG-noise handling. Keep legacy output byte-for-byte unchanged by
+        // default; never reassign transparency or alter large sharp regions.
+        RegionMergeStats regionMerge = default;
+        if (options.RegionMergeV1)
+        {
+            regionMerge = RegionMergeRefiner.Refine(img, labels, palette,
+                options.RegionMergeMaxAreaV1, ct);
+            if (regionMerge.RelabeledPixels > 0)
+                palette = CompactPalette(img, labels, palette.Count);
+        }
         var seg = Segmenter.Components(labels, w, h);
         long segmentMs = sw.ElapsedMilliseconds;
 
         progress?.Invoke("boundaries", 0.45);
         sw.Restart();
         var graph = new BoundaryTracer(seg.RegionId, w, h, seg.RegionCount).Run(ct);
+        // This strict experiment-only audit verifies each lattice crack's region
+        // sides and closed per-region traversals before curves can move geometry.
+        BoundaryTopologyValidator.Audit topologyAudit = default;
+        if (options.RegionMergeV1)
+            topologyAudit = BoundaryTopologyValidator.Verify(graph, seg, w, h, ct);
         long boundaryMs = sw.ElapsedMilliseconds;
 
         progress?.Invoke("curves", 0.6);
@@ -263,8 +302,10 @@ public static class Tracer
             });
         }
         var originalDoc = new VectorDocument { Width = w, Height = h, Palette = palette, Regions = regions };
+        StackedLayerStats stackedLayerAudit = default;
         var doc = options.ShapeMode == ShapeMode.Stacked
-            ? StackedShapeBuilder.Build(originalDoc, seg, graph, regionOrder, ct)
+            ? StackedShapeBuilder.Build(originalDoc, seg, graph, regionOrder, ct,
+                options.StackedLayerReasoningV1, audit => stackedLayerAudit = audit)
             : originalDoc;
         if (options.ShapeMode == ShapeMode.Stacked)
             nodes = doc.Regions.Sum(r => r.Loops.Sum(loop => loop.Count));
@@ -278,6 +319,16 @@ public static class Tracer
             OptimizedChainNodes = optimizedChainNodes,
             GlobalReducedChains = globalReducedChains,
             LocalEdgeV3MovedPoints = localV3MovedPoints,
+            RegionMergeV1Before = regionMerge.RegionsBefore,
+            RegionMergeV1After = regionMerge.RegionsAfter,
+            RegionMergeV1ChangedPixels = regionMerge.RelabeledPixels,
+            RegionMergeV1MergedRegions = regionMerge.MergedRegions,
+            RegionMergeV1RejectedByTopology = regionMerge.TopologyRejectedRegions,
+            RegionMergeV1VerifiedCracks = topologyAudit.Cracks,
+            RegionMergeV1VerifiedContours = topologyAudit.ClosedContours,
+            StackedLayers = stackedLayerAudit,
+            AntiAliasBands = antiAliasBands,
+            AntiAliasBandsSkipped = aaSkipped,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
