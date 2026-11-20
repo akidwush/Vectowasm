@@ -1,0 +1,49 @@
+name: Browser Local Edge V3 A/B gate
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Browser/**'
+      - 'Vecto.Core/**'
+      - 'Vecto.PaletteTests/**'
+      - '.github/workflows/local-edge-browser-ab-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Vecto.Browser/**'
+      - 'Vecto.Core/**'
+      - 'Vecto.PaletteTests/**'
+      - '.github/workflows/local-edge-browser-ab-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Validate JavaScript syntax
+        run: node --check Vecto.Browser/wwwroot/js/vecto.js
+      - name: Check A/B engine wiring and default protection
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          ui = Path("Vecto.Browser/Pages/Index.razor").read_text()
+          opts = Path("Vecto.Core/TraceOptions.cs").read_text()
+          js = Path("Vecto.Browser/wwwroot/js/vecto.js").read_text()
+          assert 'private string engineMode = "Original";' in ui
+          assert 'LocalEdgeRefinementV3 = enableV3' in ui
+          assert 'originalTrace = Tracer.Trace(image, BuildOptions(colors, false));' in ui
+          assert 'Tracer.Trace(image, BuildOptions(colors, useV3))' in ui
+          assert 'bool useV3 = engineMode != "Original";' in ui
+          assert 'LocalEdgeRefinementV3 { get; set; } = false;' in opts
+          assert 'measureSvgPair(inputUrl, originalSvgUrl, v3SvgUrl)' in js
+          assert 'if (string.Equals(alternateSvgText, svgText, StringComparison.Ordinal))' in ui
+          print("PASS: opt-in, paired tracing and measurable differences wired")
+          PY
+      - name: Run regression tests
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Publish Blazor WebAssembly
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish

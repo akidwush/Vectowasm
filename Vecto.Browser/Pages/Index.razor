@@ -23,11 +23,25 @@
                     <button type="button" class="tool-button @(previewMode == "original" ? "is-selected" : "")" @onclick="ShowOriginal" aria-pressed="@(previewMode == "original")">Asli</button>
                     <button type="button" class="tool-button @(previewMode == "vector" ? "is-selected" : "")" @onclick="ShowVector" disabled="@(svgUrl is null)" aria-pressed="@(previewMode == "vector")">SVG</button>
                     <button type="button" class="tool-button @(previewMode == "compare" ? "is-selected" : "")" @onclick="ShowCompare" disabled="@(svgUrl is null)" aria-pressed="@(previewMode == "compare")">Bandingkan</button>
+                    <button type="button" class="tool-button @(previewMode == "ab" ? "is-selected" : "")" @onclick="ShowAb" disabled="@(alternateSvgUrl is null)" aria-pressed="@(previewMode == "ab")">A/B V3</button>
                 </div>
             </div>
 
             <div class="canvas-stage">
-                @if (previewMode == "compare" && !string.IsNullOrEmpty(inputUrl) && !string.IsNullOrEmpty(svgUrl))
+                @if (previewMode == "ab" && !string.IsNullOrEmpty(alternateSvgUrl) && !string.IsNullOrEmpty(svgUrl))
+                {
+                    <div class="compare-stage">
+                        <div class="comparison-pane">
+                            <div class="pane-heading">Original Engine (V3 OFF)</div>
+                            <div class="comparison-canvas"><img src="@alternateSvgUrl" alt="SVG dari engine Original" style="@($"width:{previewZoom}%;")" /></div>
+                        </div>
+                        <div class="comparison-pane">
+                            <div class="pane-heading">Local Edge V3 (ON)</div>
+                            <div class="comparison-canvas"><img src="@svgUrl" alt="SVG dari engine Local Edge V3" style="@($"width:{previewZoom}%;")" /></div>
+                        </div>
+                    </div>
+                }
+                else if (previewMode == "compare" && !string.IsNullOrEmpty(inputUrl) && !string.IsNullOrEmpty(svgUrl))
                 {
                     <div class="compare-stage">
                         <div class="comparison-pane">
@@ -107,6 +121,15 @@
                             </select>
                         </label>
                     </div>
+                    <div class="engine-experiment">
+                        <label for="edge-engine">Engine koreksi tepi (eksperimental)</label>
+                        <select id="edge-engine" @bind="engineMode" disabled="@(running || loadingFile)">
+                            <option value="Original">Original — stabil</option>
+                            <option value="V3">Local Edge V3 — aktifkan</option>
+                            <option value="Compare">Bandingkan A/B — Original vs V3</option>
+                        </select>
+                        <p>Mode A/B benar-benar memproses dua SVG secara lokal dengan gambar dan pengaturan identik. V3 belum terbukti lebih baik untuk semua gambar.</p>
+                    </div>
                     <details class="advanced-options">
                         <summary>Pengaturan lanjutan</summary>
                         <div class="advanced-inside">
@@ -133,7 +156,55 @@
                     @if (!string.IsNullOrEmpty(svgUrl))
                     {
                         <div class="result-details"><strong>Hasil: @resultSize</strong><span>@lastDiagnostics</span></div>
-                        <button type="button" class="export-button" @onclick="DownloadSvg">Unduh SVG</button>
+                        <button type="button" class="export-button" @onclick="DownloadSvg">@(alternateSvgUrl is null ? "Unduh SVG" : "Unduh Local Edge V3 SVG")</button>
+                        @if (alternateSvgUrl is not null)
+                        {
+                            <button type="button" class="export-button ab-secondary" @onclick="DownloadOriginalSvg">Unduh Original SVG</button>
+                        }
+                        @if (alternateSvgUrl is not null && baselineDiagnostics is not null && v3Diagnostics is not null)
+                        {
+                            <div class="ab-report">
+                                <strong>Hasil A/B — parameter sama</strong>
+                                <div class="ab-table-scroll">
+                                    <table>
+                                        <thead><tr><th>Metrik</th><th>Original</th><th>Local V3</th></tr></thead>
+                                        <tbody>
+                                            <tr><td>Waktu tracing</td><td>@baselineDiagnostics.TotalMs ms</td><td>@v3Diagnostics.TotalMs ms</td></tr>
+                                            <tr><td>Region</td><td>@baselineDiagnostics.RegionCount</td><td>@v3Diagnostics.RegionCount</td></tr>
+                                            <tr><td>Node geometri</td><td>@baselineDiagnostics.NodeCount</td><td>@v3Diagnostics.NodeCount</td></tr>
+                                            <tr><td>Node setelah optimasi</td><td>@baselineDiagnostics.OptimizedChainNodes</td><td>@v3Diagnostics.OptimizedChainNodes</td></tr>
+                                            <tr><td>Segmen SVG</td><td>@originalSegments</td><td>@v3Segments</td></tr>
+                                            <tr><td>Garis mikro (&lt;2 px)</td><td>@originalMicroLines</td><td>@v3MicroLines</td></tr>
+                                            <tr><td>Ukuran SVG</td><td>@originalSvgBytes B</td><td>@v3SvgBytes B</td></tr>
+                                            <tr><td>Titik digeser V3</td><td>0</td><td>@v3Diagnostics.LocalEdgeV3MovedPoints</td></tr>
+                                            @if (pixelAudit is not null)
+                                            {
+                                                <tr><td>IoU mask</td><td>@($"{pixelAudit.Original.Iou * 100:F3}%")</td><td>@($"{pixelAudit.V3.Iou * 100:F3}%")</td></tr>
+                                                <tr><td>SSIM luminans 8×8</td><td>@($"{pixelAudit.Original.Ssim:F5}")</td><td>@($"{pixelAudit.V3.Ssim:F5}")</td></tr>
+                                                <tr><td>Kesalahan mask (px)</td><td>@pixelAudit.Original.Wrong</td><td>@pixelAudit.V3.Wrong</td></tr>
+                                                <tr><td>MAE RGB</td><td>@($"{pixelAudit.Original.Mae:F2}")</td><td>@($"{pixelAudit.V3.Mae:F2}")</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                @if (pixelAudit is not null)
+                                {
+                                    <p>Metrik raster: @pixelAudit.Width × @pixelAudit.Height px (maksimum sisi 1024 px), komposit putih. IoU/kesalahan mask menggunakan luminans &lt;128 dan terutama relevan untuk gambar dua warna; SSIM memakai jendela non-overlap 8×8, bukan skimage. Bandingkan juga MAE RGB untuk ilustrasi berwarna.</p>
+                                }
+                                else if (!string.IsNullOrEmpty(pixelAuditError))
+                                {
+                                    <p>Metrik raster tidak tersedia: @pixelAuditError. Dua SVG tetap bisa diperiksa dan diunduh.</p>
+                                }
+                                @if (string.Equals(alternateSvgText, svgText, StringComparison.Ordinal))
+                                {
+                                    <p class="ab-warning">Kedua SVG identik. V3 tidak menghasilkan perubahan yang terlihat pada gambar ini.</p>
+                                }
+                                else
+                                {
+                                    <p class="ab-different">Kedua SVG berbeda. Periksa bentuk tepi, ujung tajam, dan ukuran sebelum memutuskan V3 lebih baik.</p>
+                                }
+                            </div>
+                        }
                         <button type="button" class="diagnostic-toggle" @onclick="() => showDiagnostics = !showDiagnostics">@(showDiagnostics ? "Sembunyikan" : "Lihat") hash diagnostik</button>
                         @if (showDiagnostics)
                         {
@@ -163,6 +234,16 @@
     private string? inputUrl;
     private string? svgUrl;
     private string? svgText;
+    // In A/B mode the primary SVG is V3, the alternate SVG is the untouched Original.
+    private string? alternateSvgText;
+    private string? alternateSvgUrl;
+    private TraceDiagnostics? baselineDiagnostics;
+    private TraceDiagnostics? v3Diagnostics;
+    private PixelAbAudit? pixelAudit;
+    private string pixelAuditError = "";
+    private int originalSegments, v3Segments, originalMicroLines, v3MicroLines;
+    private int originalSvgBytes, v3SvgBytes;
+    private string engineMode = "Original";
     private string status = "Pilih file gambar.";
     private string lastDiagnostics = "";
     private string inputHash = "";
@@ -193,6 +274,7 @@
         sourceSize = "";
         resultSize = "";
         svgText = null;
+        ResetAbStats();
         autoEstimate = null;
         lastDiagnostics = "";
         inputHash = "";
@@ -202,12 +284,14 @@
         fileInputKey++;
         await ClearUrl(true);
         await ClearUrl(false);
+        await ClearAlternateUrl();
         status = "Pilih file gambar.";
     }
 
     private void ShowOriginal() => previewMode = "original";
     private void ShowVector() { if (svgUrl is not null) previewMode = "vector"; }
     private void ShowCompare() { if (svgUrl is not null) previewMode = "compare"; }
+    private void ShowAb() { if (alternateSvgUrl is not null) previewMode = "ab"; }
     private void ZoomIn() => previewZoom = Math.Min(200, previewZoom + 25);
     private void ZoomOut() => previewZoom = Math.Max(50, previewZoom - 25);
     private void ResetZoom() => previewZoom = 100;
@@ -255,6 +339,7 @@
             pixelCompression = null;
             originalHash = "";
             svgText = null;
+            ResetAbStats();
             sourceName = Path.GetFileName(file.Name);
             sourceSize = $"{file.Size / 1024.0:N0} KB";
             resultSize = "";
@@ -262,6 +347,7 @@
             inputHash = "";
             svgHash = "";
             await ClearUrl(false);
+            await ClearAlternateUrl();
             status = "Membaca gambar dan menghitung warna…";
             await InvokeAsync(StateHasChanged);
             await Js.InvokeVoidAsync("vecto.afterPaint");
@@ -299,6 +385,39 @@
         }
     }
 
+    private TraceOptions BuildOptions(int colors, bool enableV3) => new()
+    {
+        Style = style,
+        ShapeMode = shapeMode,
+        Detail = detail,
+        PaletteMode = PaletteMode.Auto,
+        MaxColors = colors,
+        Seed = seed,
+        CurveFitting = curveFitting,
+        OptimizeNodes = optimizeNodes,
+        PolygonEpsilon = polygonEpsilon,
+        EdgeCoverageThreshold = 0.5,
+        LocalEdgeRefinementV3 = enableV3
+    };
+
+    private static int CountSegments(TraceResult trace) =>
+        trace.Document.Regions.Sum(r => r.Loops.Sum(loop => loop.Count));
+
+    private static int CountMicroLines(TraceResult trace) =>
+        trace.Document.Regions.Sum(r => r.Loops.Sum(loop =>
+            loop.Count(segment => segment.IsLine() && (segment.P3 - segment.P0).Length < 2)));
+
+    private void ResetAbStats()
+    {
+        alternateSvgText = null;
+        baselineDiagnostics = null;
+        v3Diagnostics = null;
+        pixelAudit = null;
+        pixelAuditError = "";
+        originalSegments = v3Segments = originalMicroLines = v3MicroLines = 0;
+        originalSvgBytes = v3SvgBytes = 0;
+    }
+
     private async Task TraceAsync()
     {
         if (sourceBytes is null || running || loadingFile) return;
@@ -308,29 +427,31 @@
         await Task.Yield();
         try
         {
-            // Reuse exactly the raster used by Auto Palette when cleanup is active.
+            // A/B must share the SAME prepared image, auto palette estimate and every other option.
             var image = preparedRaster ?? await RasterDecoder.DecodeAsync(sourceBytes, Js);
-            // Palette size is always inferred from decoded pixels, not UI presets.
-            int chosenMaxColors = (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors;
-            var options = new TraceOptions
+            int colors = (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors;
+            bool compare = engineMode == "Compare";
+            bool useV3 = engineMode != "Original";
+            TraceResult? originalTrace = null;
+            string? originalSvg = null;
+            if (compare)
             {
-                Style = style,
-                ShapeMode = shapeMode,
-                Detail = detail,
-                PaletteMode = PaletteMode.Auto,
-                MaxColors = chosenMaxColors,
-                Seed = seed,
-                CurveFitting = curveFitting,
-                OptimizeNodes = optimizeNodes,
-                PolygonEpsilon = polygonEpsilon
-            };
-            var traced = Tracer.Trace(image, options);
-            var result = SvgWriter.Write(traced.Document);
+                originalTrace = Tracer.Trace(image, BuildOptions(colors, false));
+                originalSvg = SvgWriter.Write(originalTrace.Document);
+            }
+
+            var traced = Tracer.Trace(image, BuildOptions(colors, useV3));
+            string result = SvgWriter.Write(traced.Document);
+
+            // Do not revoke old preview URLs until replacement SVGs exist.
             await ClearUrl(false);
+            await ClearAlternateUrl();
+            ResetAbStats();
             svgText = result;
-            svgUrl = await Js.InvokeAsync<string>("vecto.createUrl", System.Text.Encoding.UTF8.GetBytes(result), "image/svg+xml");
+            svgUrl = await Js.InvokeAsync<string>("vecto.createUrl",
+                System.Text.Encoding.UTF8.GetBytes(result), "image/svg+xml");
             svgHash = FnvHash.Text(result);
-            previewMode = "compare";
+            previewMode = compare ? "ab" : "compare";
             inputHash = FnvHash.Hex(image.Pixels);
             resultSize = $"{System.Text.Encoding.UTF8.GetByteCount(result) / 1024.0:N0} KB";
             string pixelInfo = pixelCompression is { Applied: true } c
@@ -342,9 +463,44 @@
                 : "";
             if (traced.Diagnostics.GlobalReducedChains > 0)
                 fitStats += $" · DP global unggul di {traced.Diagnostics.GlobalReducedChains:N0} rantai";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors";
+            string v3Info = useV3
+                ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
+                : " · Engine Original";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}";
+
+            if (compare && originalTrace is not null && originalSvg is not null)
+            {
+                alternateSvgText = originalSvg;
+                alternateSvgUrl = await Js.InvokeAsync<string>("vecto.createUrl",
+                    System.Text.Encoding.UTF8.GetBytes(originalSvg), "image/svg+xml");
+                baselineDiagnostics = originalTrace.Diagnostics;
+                v3Diagnostics = traced.Diagnostics;
+                originalSegments = CountSegments(originalTrace);
+                v3Segments = CountSegments(traced);
+                originalMicroLines = CountMicroLines(originalTrace);
+                v3MicroLines = CountMicroLines(traced);
+                originalSvgBytes = System.Text.Encoding.UTF8.GetByteCount(originalSvg);
+                v3SvgBytes = System.Text.Encoding.UTF8.GetByteCount(result);
+
+                try
+                {
+                    if (inputUrl is not null && svgUrl is not null && alternateSvgUrl is not null)
+                        pixelAudit = await Js.InvokeAsync<PixelAbAudit>(
+                            "vecto.measureSvgPair", inputUrl, alternateSvgUrl, svgUrl);
+                }
+                catch (Exception ex)
+                {
+                    // Raster metrics must never prevent download/inspection of actual SVG results.
+                    pixelAuditError = ex.Message;
+                }
+            }
+
             previewZoom = 100;
-            status = "SVG selesai dibuat.";
+            status = compare
+                ? "A/B selesai. Kedua SVG dibuat dengan setting identik; lihat tabel dan pratinjau A/B V3."
+                : useV3
+                    ? $"Local Edge V3 selesai: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser."
+                    : "SVG Original selesai dibuat.";
         }
         catch (Exception ex)
         {
@@ -356,11 +512,44 @@
         }
     }
 
+    public sealed class PixelAbRow
+    {
+        public double Iou { get; set; }
+        public double Ssim { get; set; }
+        public int Wrong { get; set; }
+        public double Mae { get; set; }
+    }
+
+    public sealed class PixelAbAudit
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public PixelAbRow Original { get; set; } = new();
+        public PixelAbRow V3 { get; set; } = new();
+    }
+
     private async Task DownloadSvg()
     {
         if (svgText is null || svgUrl is null) return;
-        string filename = Path.GetFileNameWithoutExtension(sourceName) + ".svg";
+        string suffix = alternateSvgUrl is not null || engineMode == "V3" ? "-local-edge-v3" : "";
+        string filename = Path.GetFileNameWithoutExtension(sourceName) + suffix + ".svg";
         await Js.InvokeVoidAsync("vecto.downloadUrl", svgUrl, filename);
+    }
+
+    private async Task DownloadOriginalSvg()
+    {
+        if (alternateSvgText is null || alternateSvgUrl is null) return;
+        await Js.InvokeVoidAsync("vecto.downloadUrl", alternateSvgUrl,
+            Path.GetFileNameWithoutExtension(sourceName) + "-original.svg");
+    }
+
+    private async Task ClearAlternateUrl()
+    {
+        if (!string.IsNullOrEmpty(alternateSvgUrl))
+        {
+            await Js.InvokeVoidAsync("vecto.revoke", alternateSvgUrl);
+            alternateSvgUrl = null;
+        }
     }
 
     private async Task ClearUrl(bool input)
@@ -379,6 +568,7 @@
         {
             await ClearUrl(true);
             await ClearUrl(false);
+            await ClearAlternateUrl();
         }
         catch (JSDisconnectedException) { }
     }

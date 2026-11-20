@@ -68,3 +68,21 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 #blazor-error-ui{background:#fff1df;border-top:1px solid #d8ac50;padding:10px;position:fixed;bottom:0;width:100%;z-index:10}
 @media(max-width:850px){.controls-grid{grid-template-columns:1fr 1fr}.control-panel:last-child{grid-column:1/-1}.canvas-stage{height:44vh;min-height:260px}}
 @media(max-width:580px){.site-header{padding:8px 10px}.brand-initial{width:30px;height:30px;font-size:20px}.brand-name strong{font-size:17px}.brand-name span{font-size:10px}.header-reset{font-size:11px;padding:7px 8px}.studio-layout{padding:7px;gap:8px}.canvas-stage{height:36vh;min-height:215px}.workspace-toolbar{padding:8px}.toolbar-title{font-size:12px}.tool-button{padding:7px 8px;font-size:11px}.controls-grid{grid-template-columns:1fr;gap:8px}.control-panel:last-child{grid-column:auto}.panel-body{padding:12px}.comparison-canvas{padding:5px}.pane-heading{padding:7px;font-size:11px}.workspace-bottom{padding:6px 8px}.zoom-controls button{padding:4px 8px}}
+
+/* PR #16: clearly separated, optional edge-refinement A/B controls. */
+.engine-experiment{margin-top:12px;border:1px solid #b9ccde;background:#f2f6fb;padding:11px;display:flex;flex-direction:column;gap:7px}
+.engine-experiment label{font-size:11px;font-weight:700;color:#284d73}
+.engine-experiment select{width:100%;min-width:0;padding:9px;background:#fff;border:1px solid #94afcb;color:#234262}
+.engine-experiment p,.ab-report p{margin:2px 0 0;color:#5c7088;line-height:1.55;font-size:11px}
+.ab-report{margin-top:12px;padding:10px;border:1px solid #b6cce1;background:#f5f9fd;min-width:0}
+.ab-report>strong{font-size:12px;color:#294e75}
+.ab-table-scroll{overflow-x:auto;margin:9px 0}
+.ab-report table{border-collapse:collapse;width:100%;font-size:11px}
+.ab-report th,.ab-report td{padding:7px 6px;border:1px solid #c7d7e6;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ab-report th:first-child,.ab-report td:first-child{text-align:left}
+.ab-report th{background:#e3eef7;color:#355477}
+.ab-report td{background:#fff;color:#354f68}
+.ab-report .ab-warning{color:#8b4b21;font-weight:700}
+.ab-report .ab-different{color:#316846;font-weight:700}
+.export-button.ab-secondary{background:#e5eff9;color:#245e99;border-color:#97b7d6;margin-top:7px}
+@media(max-width:580px){.preview-switch{gap:2px}.tool-button{padding:7px 6px;font-size:10px}.toolbar-title{font-size:11px}.ab-report th,.ab-report td{padding:6px 5px}}
