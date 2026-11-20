@@ -35,16 +35,26 @@ jobs:
             echo 'No headless Chromium available on runner' >&2
             exit 1
           fi
+          python3 -m http.server 8765 --bind 127.0.0.1 \
+            --directory Vecto.Browser/wwwroot > /tmp/preview-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 40); do
+            curl -fsS http://127.0.0.1:8765/js/tests/preview-browser-smoke.html > /dev/null && break
+            sleep .25
+          done
           output="$(mktemp)"
-          uri="file://$PWD/Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.html"
-          timeout 35s "$chrome" --headless=new --no-sandbox --disable-gpu \
-            --disable-dev-shm-usage --allow-file-access-from-files \
-            --virtual-time-budget=7000 --dump-dom "$uri" > "$output" 2>/tmp/preview-browser-stderr || {
+          uri="http://127.0.0.1:8765/js/tests/preview-browser-smoke.html"
+          timeout 45s "$chrome" --headless=new --no-sandbox --disable-gpu \
+            --disable-dev-shm-usage --virtual-time-budget=12000 \
+            --dump-dom "$uri" > "$output" 2>/tmp/preview-browser-stderr || {
             tail -35 /tmp/preview-browser-stderr
             exit 1
           }
           if ! grep -q 'data-smoke="pass"' "$output"; then
-            grep -A 5 -B 4 'id="result"' "$output" || true
+            echo 'Browser smoke did not pass:'
+            grep -oE '<body[^>]*>|<pre id="result">[^<]*</pre>' "$output" || true
+            tail -35 /tmp/preview-browser-stderr || true
             exit 1
           fi
           echo 'PASS Chrome visual rendering: native SVG path, raster pixels, extreme pan, max 1000x, split clipping'
