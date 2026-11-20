@@ -20,6 +20,9 @@ public enum ShapeMode { Planar, Stacked }
 /// <summary>Controls which post-fit node reduction algorithm is run.</summary>
 public enum BezierOptimizationMode { Pairwise, GlobalDp }
 
+/// <summary>Original production fitter or independent Ekstracev1 experimental fitter.</summary>
+public enum ContourFittingEngine { Original, Ekstracev1 }
+
 public sealed class TraceOptions
 {
     public PaletteMode PaletteMode { get; set; } = PaletteMode.Auto;
@@ -36,6 +39,8 @@ public sealed class TraceOptions
     public bool OptimizeNodes { get; set; } = true;
     /// <summary>Only used when OptimizeNodes and CurveFitting are enabled. GlobalDp remains production default.</summary>
     public BezierOptimizationMode BezierMode { get; set; } = BezierOptimizationMode.GlobalDp;
+    /// <summary>Opt-in alternative for fitting shared contour chains; Original is unchanged.</summary>
+    public ContourFittingEngine ContourFittingEngine { get; set; } = ContourFittingEngine.Original;
     /// <summary>Experimental edge-coverage isovalue; default 0.5 retains the production behavior.</summary>
     public double EdgeCoverageThreshold { get; set; } = 0.5;
     /// <summary>Optional source RGBA for sub-pixel sampling only. Null uses tracing raster (production behavior).</summary>
