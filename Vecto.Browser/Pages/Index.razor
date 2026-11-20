@@ -156,10 +156,16 @@
                     @if (!string.IsNullOrEmpty(svgUrl))
                     {
                         <div class="result-details"><strong>Hasil: @resultSize</strong><span>@lastDiagnostics</span></div>
-                        <button type="button" class="export-button" @onclick="DownloadSvg">@(alternateSvgUrl is null ? "Unduh SVG" : "Unduh Local Edge V3 SVG")</button>
-                        @if (alternateSvgUrl is not null)
+                        @if (!running && !loadingFile)
                         {
-                            <button type="button" class="export-button ab-secondary" @onclick="DownloadOriginalSvg">Unduh Original SVG</button>
+                            <div class="download-links">
+                                <a class="export-button" href="@svgUrl" download="@primaryDownloadName">@(alternateSvgUrl is null ? "Unduh SVG" : "Unduh Local Edge V3 SVG")</a>
+                                @if (alternateSvgUrl is not null)
+                                {
+                                    <a class="export-button ab-secondary" href="@alternateSvgUrl" download="@alternateDownloadName">Unduh Original SVG</a>
+                                }
+                                <a class="download-fallback" href="@svgUrl" target="_blank" rel="noopener noreferrer">Jika tidak terunduh, buka SVG lalu simpan lewat browser</a>
+                            </div>
                         }
                         @if (alternateSvgUrl is not null && baselineDiagnostics is not null && v3Diagnostics is not null)
                         {
@@ -205,6 +211,22 @@
                                 }
                             </div>
                         }
+                        @if (primaryStatistics is not null && primaryDiagnostics is not null && primaryTraceOptions is not null)
+                        {
+                            <SvgMetadataPanel Stats="@primaryStatistics" Diagnostics="@primaryDiagnostics"
+                                Options="@primaryTraceOptions" Filename="@primaryDownloadName" EngineLabel="@primaryEngineName"
+                                SvgHash="@svgHash" SourceFileBytes="@(sourceBytes?.LongLength ?? 0L)"
+                                CleanupApplied="@(pixelCompression?.Applied ?? false)"
+                                CleanedPixels="@(pixelCompression?.ChangedPixels ?? 0)" Expanded="true" />
+                        }
+                        @if (alternateStatistics is not null && baselineDiagnostics is not null && alternateTraceOptions is not null)
+                        {
+                            <SvgMetadataPanel Stats="@alternateStatistics" Diagnostics="@baselineDiagnostics"
+                                Options="@alternateTraceOptions" Filename="@alternateDownloadName" EngineLabel="Original (A/B)"
+                                SvgHash="@alternateSvgHash" SourceFileBytes="@(sourceBytes?.LongLength ?? 0L)"
+                                CleanupApplied="@(pixelCompression?.Applied ?? false)"
+                                CleanedPixels="@(pixelCompression?.ChangedPixels ?? 0)" Expanded="false" />
+                        }
                         <button type="button" class="diagnostic-toggle" @onclick="() => showDiagnostics = !showDiagnostics">@(showDiagnostics ? "Sembunyikan" : "Lihat") hash diagnostik</button>
                         @if (showDiagnostics)
                         {
@@ -237,6 +259,15 @@
     // In A/B mode the primary SVG is V3, the alternate SVG is the untouched Original.
     private string? alternateSvgText;
     private string? alternateSvgUrl;
+    private SvgOutputStatistics? primaryStatistics;
+    private SvgOutputStatistics? alternateStatistics;
+    private TraceDiagnostics? primaryDiagnostics;
+    private TraceOptions? primaryTraceOptions;
+    private TraceOptions? alternateTraceOptions;
+    private string primaryDownloadName = "dikatrace.svg";
+    private string alternateDownloadName = "dikatrace-original.svg";
+    private string primaryEngineName = "Original";
+    private string alternateSvgHash = "";
     private TraceDiagnostics? baselineDiagnostics;
     private TraceDiagnostics? v3Diagnostics;
     private PixelAbAudit? pixelAudit;
@@ -409,6 +440,15 @@
 
     private void ResetAbStats()
     {
+        primaryStatistics = null;
+        alternateStatistics = null;
+        primaryDiagnostics = null;
+        primaryTraceOptions = null;
+        alternateTraceOptions = null;
+        primaryDownloadName = "dikatrace.svg";
+        alternateDownloadName = "dikatrace-original.svg";
+        primaryEngineName = "Original";
+        alternateSvgHash = "";
         alternateSvgText = null;
         baselineDiagnostics = null;
         v3Diagnostics = null;
@@ -434,19 +474,27 @@
             bool useV3 = engineMode != "Original";
             TraceResult? originalTrace = null;
             string? originalSvg = null;
+            TraceOptions? originalOptions = null;
             if (compare)
             {
-                originalTrace = Tracer.Trace(image, BuildOptions(colors, false));
+                originalOptions = BuildOptions(colors, false);
+                originalTrace = Tracer.Trace(image, originalOptions);
                 originalSvg = SvgWriter.Write(originalTrace.Document);
             }
 
-            var traced = Tracer.Trace(image, BuildOptions(colors, useV3));
+            var traceOptions = BuildOptions(colors, useV3);
+            var traced = Tracer.Trace(image, traceOptions);
             string result = SvgWriter.Write(traced.Document);
 
             // Do not revoke old preview URLs until replacement SVGs exist.
             await ClearUrl(false);
             await ClearAlternateUrl();
             ResetAbStats();
+            primaryStatistics = SvgOutputStatistics.Analyze(traced.Document, result);
+            primaryDiagnostics = traced.Diagnostics;
+            primaryTraceOptions = traceOptions;
+            primaryEngineName = useV3 ? "Local Edge V3" : "Original";
+            primaryDownloadName = MakeSvgDownloadName(sourceName, useV3 ? "-local-edge-v3" : "");
             svgText = result;
             svgUrl = await Js.InvokeAsync<string>("vecto.createUrl",
                 System.Text.Encoding.UTF8.GetBytes(result), "image/svg+xml");
@@ -468,8 +516,12 @@
                 : " · Engine Original";
             lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}";
 
-            if (compare && originalTrace is not null && originalSvg is not null)
+            if (compare && originalTrace is not null && originalSvg is not null && originalOptions is not null)
             {
+                alternateStatistics = SvgOutputStatistics.Analyze(originalTrace.Document, originalSvg);
+                alternateTraceOptions = originalOptions;
+                alternateDownloadName = MakeSvgDownloadName(sourceName, "-original");
+                alternateSvgHash = FnvHash.Text(originalSvg);
                 alternateSvgText = originalSvg;
                 alternateSvgUrl = await Js.InvokeAsync<string>("vecto.createUrl",
                     System.Text.Encoding.UTF8.GetBytes(originalSvg), "image/svg+xml");
@@ -528,19 +580,16 @@
         public PixelAbRow V3 { get; set; } = new();
     }
 
-    private async Task DownloadSvg()
+    // Snapshot the file name at trace time. Changing the engine selector later
+    // must never rename or misidentify an already-rendered result.
+    private static string MakeSvgDownloadName(string uploadedName, string suffix)
     {
-        if (svgText is null || svgUrl is null) return;
-        string suffix = alternateSvgUrl is not null || engineMode == "V3" ? "-local-edge-v3" : "";
-        string filename = Path.GetFileNameWithoutExtension(sourceName) + suffix + ".svg";
-        await Js.InvokeVoidAsync("vecto.downloadUrl", svgUrl, filename);
-    }
-
-    private async Task DownloadOriginalSvg()
-    {
-        if (alternateSvgText is null || alternateSvgUrl is null) return;
-        await Js.InvokeVoidAsync("vecto.downloadUrl", alternateSvgUrl,
-            Path.GetFileNameWithoutExtension(sourceName) + "-original.svg");
+        string stem = Path.GetFileNameWithoutExtension(uploadedName);
+        string invalid = "/\\:*?\"<>|";
+        stem = new string(stem.Select(c => char.IsControl(c) || invalid.Contains(c) ? '_' : c).ToArray()).Trim().Trim('.');
+        if (string.IsNullOrWhiteSpace(stem)) stem = "dikatrace";
+        if (stem.Length > 100) stem = stem[..100];
+        return stem + suffix + ".svg";
     }
 
     private async Task ClearAlternateUrl()

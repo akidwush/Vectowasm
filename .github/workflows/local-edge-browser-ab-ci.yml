@@ -35,8 +35,10 @@ jobs:
           js = Path("Vecto.Browser/wwwroot/js/vecto.js").read_text()
           assert 'private string engineMode = "Original";' in ui
           assert 'LocalEdgeRefinementV3 = enableV3' in ui
-          assert 'originalTrace = Tracer.Trace(image, BuildOptions(colors, false));' in ui
-          assert 'Tracer.Trace(image, BuildOptions(colors, useV3))' in ui
+          assert 'originalOptions = BuildOptions(colors, false);' in ui
+          assert 'originalTrace = Tracer.Trace(image, originalOptions);' in ui
+          assert 'var traceOptions = BuildOptions(colors, useV3);' in ui
+          assert 'var traced = Tracer.Trace(image, traceOptions);' in ui
           assert 'bool useV3 = engineMode != "Original";' in ui
           assert 'LocalEdgeRefinementV3 { get; set; } = false;' in opts
           assert 'measureSvgPair(inputUrl, originalSvgUrl, v3SvgUrl)' in js

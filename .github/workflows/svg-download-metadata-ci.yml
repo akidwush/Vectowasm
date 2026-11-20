@@ -1,0 +1,56 @@
+name: SVG download and metadata validation
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Browser/**'
+      - 'Vecto.Core/**'
+      - 'Vecto.PaletteTests/**'
+      - '.github/workflows/svg-download-metadata-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Vecto.Browser/**'
+      - 'Vecto.Core/**'
+      - 'Vecto.PaletteTests/**'
+      - '.github/workflows/svg-download-metadata-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Check JS syntax
+        run: node --check Vecto.Browser/wwwroot/js/vecto.js
+      - name: Check native links and metadata invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          ui = Path("Vecto.Browser/Pages/Index.razor").read_text()
+          meta = Path("Vecto.Browser/Pages/SvgMetadataPanel.razor").read_text()
+          stats = Path("Vecto.Core/SvgOutputStatistics.cs").read_text()
+          js = Path("Vecto.Browser/wwwroot/js/vecto.js").read_text()
+          assert 'href="@svgUrl" download="@primaryDownloadName"' in ui
+          assert 'href="@alternateSvgUrl" download="@alternateDownloadName"' in ui
+          assert 'target="_blank" rel="noopener noreferrer"' in ui
+          assert 'MakeSvgDownloadName(sourceName' in ui
+          assert 'private async Task DownloadSvg' not in ui
+          assert 'vecto.downloadUrl' not in ui
+          assert 'downloadUrl(url, filename)' not in js
+          assert 'SvgOutputStatistics.Analyze(traced.Document, result)' in ui
+          assert 'SvgOutputStatistics.Analyze(originalTrace.Document, originalSvg)' in ui
+          assert 'FileBytes = Encoding.UTF8.GetByteCount(svg)' in stats
+          assert 'segment.IsLine()' in stats
+          assert 'for (int i = 1; i <= 16; i++)' in stats
+          assert 'Jumlah warna digunakan' in meta and 'Palet warna SVG' in meta
+          assert 'Local Edge V3' in meta
+          print("PASS native download wiring, snapshots and SVG metadata source")
+          PY
+      - name: Existing regressions and metadata unit checks
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Blazor WebAssembly Release build
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
