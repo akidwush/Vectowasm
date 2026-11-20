@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'Vecto.Browser/wwwroot/lab/**'
+      - 'Vecto.Core/**'
+      - 'Vecto.Benchmarks/**'
+      - 'Vecto.PaletteTests/**'
       - '.github/workflows/hybrid-vtracer-quality-lab.yml'
   workflow_dispatch:
 
@@ -77,4 +80,31 @@ jobs:
         with:
           name: dikatrace-hybrid-rust-quality-lab
           path: hybrid-lab-preview/
+          retention-days: 10
+
+  accent-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Unit regressions incl. Accent Ink V1
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Publish completely self-contained Linux benchmark executable
+        run: |
+          dotnet publish Vecto.Benchmarks/Vecto.Benchmarks.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o native-probe
+          test -x native-probe/Vecto.Benchmarks
+          native-probe/Vecto.Benchmarks --self-test
+      - name: Package native probe (no private tiger image)
+        run: |
+          mkdir -p accent-probe-package
+          cp native-probe/Vecto.Benchmarks accent-probe-package/
+          chmod +x accent-probe-package/Vecto.Benchmarks
+          printf 'Run on Linux x64:\n./Vecto.Benchmarks --image tiger.jpg --style Blended --detail High --single-stacked --svg-dir baseline --json baseline.json\n./Vecto.Benchmarks --image tiger.jpg --style Blended --detail High --single-stacked --accent-ink --svg-dir accent --json accent.json\nDo not upload private input photos to public Actions.\n' > accent-probe-package/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dikatrace-native-accent-probe-linux-x64
+          path: accent-probe-package/
           retention-days: 10
