@@ -80,7 +80,8 @@ internal static class ChainGeometry
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static void SubpixelRefine(List<Vec2> pts, bool closed, IReadOnlyList<int> pinned,
-        RasterImage img, Rgba32? left, Rgba32? right, double maxShift)
+        RasterImage img, Rgba32? left, Rgba32? right, double maxShift,
+        double targetCoverage = 0.5)
     {
         if (left == null && right == null) return;
         int n = closed ? pts.Count - 1 : pts.Count;
@@ -120,10 +121,10 @@ internal static class ChainGeometry
             double f1 = CoverLeft(p);
             double f2 = CoverLeft(p + normal);
             double t;
-            if ((f0 - 0.5) * (f1 - 0.5) <= 0 && Math.Abs(f1 - f0) > 1e-9)
-                t = -1 + (0.5 - f0) / (f1 - f0);
-            else if ((f1 - 0.5) * (f2 - 0.5) <= 0 && Math.Abs(f2 - f1) > 1e-9)
-                t = (0.5 - f1) / (f2 - f1);
+            if ((f0 - targetCoverage) * (f1 - targetCoverage) <= 0 && Math.Abs(f1 - f0) > 1e-9)
+                t = -1 + (targetCoverage - f0) / (f1 - f0);
+            else if ((f1 - targetCoverage) * (f2 - targetCoverage) <= 0 && Math.Abs(f2 - f1) > 1e-9)
+                t = (targetCoverage - f1) / (f2 - f1);
             else
                 continue;
             if (double.IsNaN(t)) continue;
