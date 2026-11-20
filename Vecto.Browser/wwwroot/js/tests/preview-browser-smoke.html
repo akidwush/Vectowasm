@@ -77,6 +77,11 @@
      root.querySelector("[data-preview-zoom-in]").click();
      root.querySelector("[data-preview-zoom-out]").click();
    }
+   // After repeated +/- clicks, explicitly return to 1000x. Fit-to-screen
+   // legitimately letterboxes a non-matching aspect ratio and should not
+   // be mistaken for the blank GPU tiles reported at high magnification.
+   root.querySelector("[data-preview-max]").click();
+   await frame();
    const v=root.querySelector("[data-preview-viewport]");
    v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:31,pointerType:"touch",clientX:160,clientY:180,button:0}));
    v.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,pointerId:31,pointerType:"touch",clientX:100000,clientY:-100000,button:0}));
