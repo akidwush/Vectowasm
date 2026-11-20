@@ -1,10 +1,11 @@
 /* DikaTrace Docs — flat, responsive, typography-first. No images or third-party CSS. */
 :root {
-  --ink:#203047; --muted:#64758a; --navy:#173f70; --blue:#235b9b;
-  --blue-2:#2b6bb1; --soft:#eaf1f8; --surface:#ffffff; --paper:#f6f8fb;
-  --line:#dbe4ef; --green:#15735d; --warn:#8e4e09;
-  font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  color:var(--ink);background:var(--paper);font-size:15px;line-height:1.65;
+  /* Exact UI palette from DikaTrace Studio wwwroot/css/app.css. */
+  --ink:#283a50; --muted:#6c7d90; --navy:#174678; --blue:#245c9b;
+  --blue-2:#3977b6; --soft:#dbe5f0; --surface:#ffffff; --paper:#dce3ea;
+  --line:#b9c7d7; --green:#3c9453; --warn:#8e4e09;
+  font-family:Tahoma,"Segoe UI",Arial,sans-serif;
+  color:var(--ink);background:var(--paper);font-size:13px;line-height:1.6;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:96px}
@@ -196,4 +197,164 @@ tbody tr:last-child td,tbody tr:last-child th{border-bottom:0}
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *,*::before,*::after{transition:none!important;animation:none!important}
+}
+
+
+/*
+ * DikaTrace documentation visual parity with the actual Studio shell.
+ * Keep these CSS values synchronized with ../css/app.css when rebranding.
+ * Shared studio tokens: #dce3ea, #e8edf3, #245c9b, #174678,
+ * #f0b657, #194775, #f8d795, #dbe5f0, #3c9453.
+ */
+
+/* Same blue header, gold D mark, font, dimensions, and subtitle as Studio. */
+.topbar{
+  background:#245c9b;
+  border-bottom:3px solid #174678;
+}
+.topbar-inner{
+  max-width:1450px;
+  padding:10px 15px;
+  gap:12px;
+}
+.brand{
+  display:flex;align-items:center;gap:10px;
+  text-decoration:none;color:#fff;min-width:0;
+}
+.brand:hover,.brand:focus-visible{color:#fff}
+.brand-initial{
+  width:35px;height:35px;flex:0 0 35px;display:grid;place-items:center;
+  font-size:22px;font-family:Georgia,serif;font-weight:bold;
+  color:#194775;background:#f0b657;border:1px solid #f8d795;border-radius:0;
+}
+.brand-name{display:flex;flex-direction:column;gap:2px;min-width:0}
+.brand-name strong{font-size:20px;letter-spacing:.1px;line-height:1.2;color:#fff}
+.brand-name span{font-size:11px;color:#d9e6f6;line-height:1.2}
+.top-links{gap:7px}
+.top-links a{
+  border-radius:2px;
+  padding:8px 12px;
+  font-size:12px;
+  border:1px solid #a6bedb;
+  font-weight:bold;
+}
+.top-links .is-current{
+  background:#3977b6;color:#fff;border-color:#205990;
+}
+.top-links .is-current:hover{background:#205990;color:#fff}
+.top-links .studio-link{
+  background:#e6eff9;color:#244970;border-color:#a6bedb;
+}
+.top-links .studio-link:hover{background:#d9e3ef;color:#244970}
+.reading-progress{background:#b5c4d5;top:59px}
+.reading-progress span{background:#3c9453}
+
+/* Exact Studio canvas/panels instead of a separate docs site theme. */
+.documentation{
+  max-width:1450px;
+  background:#e8edf3;
+  min-height:calc(100dvh - 62px);
+  border-left:1px solid #b9c7d7;
+  border-right:1px solid #b9c7d7;
+}
+.sidebar{background:#f6f8fb;border-right:1px solid #9daec2}
+.sidebar-caption{color:#315e91}
+#doc-search{border:1px solid #a8b9cb;border-radius:2px}
+.contents a{border-radius:2px;color:#3a526c}
+.contents a:hover{color:#315e91;background:#e7edf4}
+.contents a.active,.contents a.active:hover{
+  color:#fff;background:#3977b6;
+}
+.sidebar-bottom{border-top-color:#b5c3d4}
+.status-dot{background:#3c9453}
+.doc-section{border-bottom-color:#b5c3d4}
+.section-heading{
+  background:#dbe5f0;
+  border:1px solid #b0bfd0;
+  padding:10px 12px;
+  margin-bottom:19px;
+}
+.section-number{
+  width:32px;height:32px;flex-basis:32px;
+  border-radius:2px;background:#447cb8;color:#fff;
+}
+.eyebrow{color:#315e91}
+h1 span{color:#245c9b}
+.lead{color:#4c6381}
+.keyfacts>div,.walkthrough>li,.preset,.mode-card,.metric-grid>div,
+.privacy-grid>div,.advice-list>div,.faq details,.feature-list article{
+  background:#fff;
+  border-color:#a6b7c9;
+  border-radius:2px;
+}
+.keyfacts>div{border-color:#b9c7d7}
+.walkthrough .step-icon{border-radius:2px;background:#447cb8}
+.btn{border-radius:2px}
+.btn-primary{
+  background:#3c9453;border:1px solid #317542;color:#fff;
+}
+.btn-primary:hover{background:#317542;color:#fff}
+.btn-quiet{
+  background:#e7edf4;border:1px solid #a3b3c5;color:#3a526c;
+}
+.btn-quiet:hover{background:#d9e3ef;color:#244970}
+.btn-light{background:#e6eff9;color:#244970;border:1px solid #a6bedb}
+.btn-light:hover{background:#d9e3ef;color:#244970}
+.note{background:#f1f5f8;border-left-color:#3977b6;border-radius:0 2px 2px 0}
+.table-wrap{border-color:#a6b7c9;border-radius:2px}
+thead th{background:#dbe5f0;color:#314b6c}
+tbody td,tbody th{border-bottom-color:#d6e0ec}
+.pipeline-overview{
+  background:#d9e3ef;color:#314b6c;
+  border:1px solid #b5c4d5;border-radius:2px;
+}
+.pipeline-overview span{
+  color:#fff;background:#3977b6;border-radius:2px;
+}
+.pipeline-overview b{color:#4c6381}
+.pipeline-step{border-bottom-color:#b9c7d7}
+.pipeline-step>span{color:#315e91}
+.mode-visual{background:#e9eff5;border-radius:2px}
+.planar-visual i:first-child,.stacked-visual i:first-child{background:#3977b6}
+.planar-visual i:nth-child(2),.stacked-visual i:nth-child(2){background:#f0b657}
+.planar-visual i:nth-child(3),.stacked-visual i:nth-child(3){background:#174678}
+.preset-label,.mode-tag{color:#245c9b}
+.faq details[open]{
+  background:#f5f8fc;border-color:#a6b7c9;
+}
+.end-cta{
+  color:#283a50;background:#dbe5f0;
+  border:1px solid #b0bfd0;border-radius:2px;
+}
+.end-cta .eyebrow{color:#315e91}
+.end-cta p:not(.eyebrow){color:#536d89}
+.footer{color:#6c7d90}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{
+  outline:2px solid #1b64ad;outline-offset:2px;
+}
+
+/* Keep exact brand proportions on Android/compact screens. */
+@media(max-width:760px){
+  .topbar-inner{padding:8px 10px}
+  .reading-progress{top:49px}
+  .sidebar{background:#f6f8fb;border-bottom:1px solid #b5c3d4}
+  .sidebar-inner{padding:12px 10px}
+  .contents a{border-radius:2px;background:#e7edf4}
+  .contents a.active{background:#3977b6;color:#fff}
+  .section-heading{padding:9px 10px}
+}
+@media(max-width:480px){
+  .topbar-inner{gap:6px}
+  .brand{gap:7px}
+  .brand-initial{width:30px;height:30px;flex-basis:30px;font-size:20px}
+  .brand-name strong{font-size:17px}
+  .brand-name span{font-size:10px}
+  .top-links{gap:4px}
+  .top-links a{padding:7px 8px;font-size:11px}
+  .section-number{width:30px;height:30px;flex-basis:30px}
+}
+@media(max-width:355px){
+  .brand-name strong{font-size:15px}
+  .brand-name span{display:none}
+  .top-links a{padding:7px 6px;font-size:10px}
 }
