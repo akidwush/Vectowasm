@@ -41,6 +41,9 @@ public sealed class TraceDiagnostics
     public int RegionMergeV1After { get; init; }
     public int RegionMergeV1ChangedPixels { get; init; }
     public int RegionMergeV1MergedRegions { get; init; }
+    public int RegionMergeV1RejectedByTopology { get; init; }
+    public int RegionMergeV1VerifiedCracks { get; init; }
+    public int RegionMergeV1VerifiedContours { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -144,6 +147,11 @@ public static class Tracer
         progress?.Invoke("boundaries", 0.45);
         sw.Restart();
         var graph = new BoundaryTracer(seg.RegionId, w, h, seg.RegionCount).Run(ct);
+        // This strict experiment-only audit verifies each lattice crack's region
+        // sides and closed per-region traversals before curves can move geometry.
+        BoundaryTopologyValidator.Audit topologyAudit = default;
+        if (options.RegionMergeV1)
+            topologyAudit = BoundaryTopologyValidator.Verify(graph, seg, w, h, ct);
         long boundaryMs = sw.ElapsedMilliseconds;
 
         progress?.Invoke("curves", 0.6);
@@ -297,6 +305,9 @@ public static class Tracer
             RegionMergeV1After = regionMerge.RegionsAfter,
             RegionMergeV1ChangedPixels = regionMerge.RelabeledPixels,
             RegionMergeV1MergedRegions = regionMerge.MergedRegions,
+            RegionMergeV1RejectedByTopology = regionMerge.TopologyRejectedRegions,
+            RegionMergeV1VerifiedCracks = topologyAudit.Cracks,
+            RegionMergeV1VerifiedContours = topologyAudit.ClosedContours,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
