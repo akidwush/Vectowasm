@@ -44,6 +44,7 @@ public static class AccentInkPaletteV1
         var strongestTile = new int[bins];
         var tileVotes = new int[checked(bins * tileCount)];
         var pixels = image.Pixels;
+        Span<int> offsets = stackalloc int[4] { -4, 4, -4 * w, 4 * w };
         int sampled = 0;
         for (int y = 1; y < h - 1; y += 2)
         {
@@ -61,7 +62,7 @@ public static class AccentInkPaletteV1
                 if (hi < 90 || delta < 42 || delta * 100 < hi * 40) continue;
 
                 bool flat = true;
-                foreach (int offset in new[] { -4, 4, -4 * w, 4 * w })
+                foreach (int offset in offsets)
                 {
                     int j = index + offset;
                     if (pixels[j + 3] < Segmenter.OpaqueThreshold ||
