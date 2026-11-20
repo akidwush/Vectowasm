@@ -9,7 +9,9 @@ internal static class StackedShapeBuilder
 {
     public static VectorDocument Build(
         VectorDocument planar, Segmentation seg, BoundaryGraph graph,
-        IReadOnlyList<int> regionOrder, CancellationToken ct)
+        IReadOnlyList<int> regionOrder, CancellationToken ct,
+        bool stackedLayerReasoningV1 = false,
+        Action<StackedLayerStats>? onLayerAudit = null)
     {
         int count = seg.RegionCount;
         VectorDocument Wrap(IEnumerable<RegionPath> output) => new()
@@ -159,7 +161,32 @@ internal static class StackedShapeBuilder
                 Loops = loops
             });
         }
-        return Wrap(result);
+        var baseline = Wrap(result);
+        if (!stackedLayerReasoningV1)
+            return baseline;
+
+        // Region ids and original painter order are retained so that the
+        // experiment cannot accidentally identify shapes only by palette.
+        // The established front-of DAG is the authority for overlap order.
+        var renderedByRegion = new RegionPath[count];
+        for (int i = 0; i < ordered.Count; i++)
+            renderedByRegion[ordered[i]] = result[i];
+
+        var candidateOrder = StackedLayerReasoner.Schedule(
+            count, frontOf, originalPriority, renderedByRegion, ct);
+        var candidateRegions = StackedLayerReasoner.CombineConsecutive(
+            candidateOrder, renderedByRegion);
+        var candidateDoc = Wrap(candidateRegions);
+        int moved = 0;
+        for (int i = 0; i < count; i++)
+            if (ordered[i] != candidateOrder[i]) moved++;
+        int dependencyCount = frontOf.Sum(x => x?.Count ?? 0);
+        // Fail closed if compound winding or reordering changes any tested
+        // raster pixel. The original Stacked document is kept as fallback.
+        var (verified, audit) = StackedLayerReasoner.VerifyOrRevert(
+            baseline, candidateDoc, moved, dependencyCount, ct);
+        onLayerAudit?.Invoke(audit);
+        return verified;
     }
 
     private static double SignedArea(IReadOnlyList<CubicBezier> loop)
