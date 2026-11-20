@@ -7,6 +7,7 @@ on:
       - 'Vecto.Browser/wwwroot/js/vecto-preview.js'
       - 'Vecto.Browser/wwwroot/js/tests/preview.test.mjs'
       - 'Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.html'
+      - 'Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.mjs'
       - 'Vecto.Browser/wwwroot/css/app.css'
       - 'Vecto.Browser/wwwroot/index.html'
       - '.github/workflows/before-after-preview-ci.yml'
@@ -43,21 +44,10 @@ jobs:
             curl -fsS http://127.0.0.1:8765/js/tests/preview-browser-smoke.html > /dev/null && break
             sleep .25
           done
-          output="$(mktemp)"
-          uri="http://127.0.0.1:8765/js/tests/preview-browser-smoke.html"
-          timeout 45s "$chrome" --headless=new --no-sandbox --disable-gpu \
-            --disable-dev-shm-usage --virtual-time-budget=12000 \
-            --dump-dom "$uri" > "$output" 2>/tmp/preview-browser-stderr || {
-            tail -35 /tmp/preview-browser-stderr
-            exit 1
-          }
-          if ! grep -q 'data-smoke="pass"' "$output"; then
-            echo 'Browser smoke did not pass:'
-            grep -oE '<body[^>]*>|<pre id="result">[^<]*</pre>' "$output" || true
-            tail -35 /tmp/preview-browser-stderr || true
-            exit 1
-          fi
-          echo 'PASS Chrome visual rendering: native SVG path, raster pixels, extreme pan, max 1000x, split clipping'
+          npm install --no-save --prefix /tmp/dikatrace-browser-test \
+            playwright-core@1.56.1
+          CHROME_EXECUTABLE="$(command -v "$chrome")" \
+            node Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.mjs
       - name: Ensure before-after, A/B V3, fallback, and download wiring
         run: |
           python3 - <<'PY'
