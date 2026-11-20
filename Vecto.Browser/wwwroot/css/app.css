@@ -113,3 +113,19 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .svg-color span:not(.color-swatch){font-size:10px;color:#617792;overflow-wrap:anywhere}
 @media(max-width:580px){.metadata-grid{grid-template-columns:1fr 1fr}.svg-colors{grid-template-columns:1fr}.svg-metadata>summary{padding:9px}.metadata-body{padding:8px}}
 @media(max-width:355px){.metadata-grid{grid-template-columns:1fr}}
+
+/* Documentation link is a native anchor; works under GitHub Pages subpaths. */
+.header-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.header-docs{display:inline-flex;align-items:center;gap:5px;border:1px solid #8cb5df;background:#154a83;color:#fff;text-decoration:none;padding:8px 12px;border-radius:3px;font-weight:bold;font-size:12px;white-space:nowrap}
+.header-docs:hover{background:#0c3765;color:#fff}
+.header-docs:focus-visible{outline:2px solid #fff;outline-offset:3px}
+@media(max-width:580px){
+  .header-tools{gap:5px}
+  .header-docs{padding:7px 8px;font-size:11px}
+}
+@media(max-width:395px){
+  .brand-name strong{font-size:15px}
+  .brand-name span{display:none}
+  .header-docs{padding:7px 6px;font-size:10px}
+  .header-reset{padding:7px 6px;font-size:10px}
+}

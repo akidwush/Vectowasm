@@ -1,0 +1,83 @@
+name: DikaTrace HTML documentation validation
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Browser/wwwroot/docs/**'
+      - 'Vecto.Browser/Pages/Index.razor'
+      - 'Vecto.Browser/wwwroot/css/app.css'
+      - '.github/workflows/dikatrace-docs-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Vecto.Browser/wwwroot/docs/**'
+      - 'Vecto.Browser/Pages/Index.razor'
+      - 'Vecto.Browser/wwwroot/css/app.css'
+      - '.github/workflows/dikatrace-docs-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript syntax
+        run: node --check Vecto.Browser/wwwroot/docs/docs.js
+      - name: Check HTML chapter anchors, local assets, and studio navigation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+
+          base = Path("Vecto.Browser/wwwroot/docs")
+          html = (base / "index.html").read_text(encoding="utf-8")
+          css = (base / "docs.css").read_text(encoding="utf-8")
+          js = (base / "docs.js").read_text(encoding="utf-8")
+          home = Path("Vecto.Browser/Pages/Index.razor").read_text(encoding="utf-8")
+
+          class Index(HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True)
+                  self.ids, self.links, self.sources, self.sections = set(), [], [], 0
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if "id" in a:
+                      assert a["id"] not in self.ids, "Duplicate id " + a["id"]
+                      self.ids.add(a["id"])
+                  if tag == "section" and "doc-section" in a.get("class",""):
+                      self.sections += 1
+                  if tag == "a": self.links.append(a.get("href", ""))
+                  if tag == "script": self.sources.append(a.get("src", ""))
+                  if tag == "link" and a.get("rel") == "stylesheet":
+                      self.sources.append(a.get("href", ""))
+
+          doc = Index()
+          doc.feed(html)
+          assert doc.sections >= 10, "Not enough independent documentation chapters"
+          assert all(link[1:] in doc.ids for link in doc.links if link.startswith("#")), "Broken documentation anchor"
+          assert "./docs.css?v=1" in doc.sources
+          assert "./docs.js?v=1" in doc.sources
+          assert all(not s.startswith(("https://", "http://")) for s in doc.sources), "Third party runtime dependency"
+          assert 'href="docs/index.html"' in home
+          assert 'target="_blank"' in home
+          for phrase in ("Cara menggunakan DikaTrace", "Mekanisme pemrosesan gambar",
+                         "Boundary graph", "Bézier", "Stacked", "Local Edge V3",
+                         "Anti-alias Aware Segmentation V1", "Unduh SVG",
+                         "20 MB dan 8 megapiksel", "repositori proyek"):
+              assert phrase in html, "Missing critical explanation: " + phrase
+          assert len(css) > 4000 and "@media(max-width:480px)" in css
+          assert "function search(" in js and "function onScroll()" in js
+          print("PASS: HTML anchors, navigation, no external scripts, responsive CSS and full documentation")
+          PY
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish Blazor WebAssembly with documentation
+        run: |
+          dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+          test -s publish/wwwroot/docs/index.html
+          test -s publish/wwwroot/docs/docs.css
+          test -s publish/wwwroot/docs/docs.js
+          grep -q 'href="docs/index.html"' publish/wwwroot/_framework/../index.html || true

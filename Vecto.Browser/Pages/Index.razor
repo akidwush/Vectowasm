@@ -11,6 +11,7 @@
             <div class="brand-name"><strong>DikaTrace</strong><span>Image to SVG</span></div>
         </div>
         <div class="header-tools">
+            <a class="header-docs" href="docs/index.html" target="_blank" rel="noopener noreferrer" aria-label="Buka dokumentasi DikaTrace dalam tab baru">Dokumentasi <span aria-hidden="true">↗</span></a>
             <button type="button" class="header-reset" @onclick="ResetAsync" disabled="@(sourceBytes is null && inputUrl is null || running || loadingFile)">Bersihkan gambar</button>
         </div>
     </header>
