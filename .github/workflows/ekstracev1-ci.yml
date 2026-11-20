@@ -1,0 +1,33 @@
+name: Ekstracev1 Third Engine CI
+on:
+  push:
+    branches:
+      - feature/ekstracev1-third-engine
+  pull_request:
+    paths:
+      - 'Vecto.Core/**'
+      - 'Vecto.Browser/**'
+      - 'Ekstracev1.Tests/**'
+      - '.github/workflows/ekstracev1-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: .NET 8 build + end-to-end smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build Ekstracev1 test harness
+        run: dotnet build Ekstracev1.Tests/Ekstracev1.Tests.csproj -c Release
+      - name: Fit curves and trace SVG
+        run: dotnet run --project Ekstracev1.Tests/Ekstracev1.Tests.csproj -c Release --no-build
+      - name: Build Blazor WebAssembly UI
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - name: Existing regression checks
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release

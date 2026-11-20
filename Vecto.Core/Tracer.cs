@@ -230,9 +230,12 @@ public static class Tracer
                         options.LocalEdgeMinCandidateShiftV3);
                     System.Threading.Interlocked.Add(ref localV3MovedPoints, moved);
                 }
-                chain.Curve = BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);
+                chain.Curve = options.ContourFittingEngine == ContourFittingEngine.Ekstracev1
+                    ? EkstraceV1Fitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq, ct)
+                    : BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);
                 System.Threading.Interlocked.Add(ref fittedChainNodes, chain.Curve.Count);
-                if (options.OptimizeNodes && chain.Curve.Count > 1)
+                // Preserve Ekstracev1's own G1 joins; the Vecto DP reducer has a separate contract.
+                if (options.ContourFittingEngine == ContourFittingEngine.Original && options.OptimizeNodes && chain.Curve.Count > 1)
                 {
                     // Do not merge across protected structural corners. Guard
                     // the replacement shape with a strict two-way pixel error.
