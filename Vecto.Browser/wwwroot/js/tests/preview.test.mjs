@@ -74,7 +74,7 @@ test("rAF coalescing, fixed canvas, native SVG viewBox and safe parser",()=>{
   assert.match(code,/ResizeObserver/);
   assert.match(code,/context\.drawImage\(image,0,0\)/);
   assert.match(code,/svg\.setAttribute\("viewBox",next\)/);
-  assert.match(code,/source\.replace\(\/<\\\?xml/); // parser removes declaration
+  assert.match(code,/replace\(\/<\!DOCTYPE/); // parser strips external DTD
   assert.match(code,/createElementNS\(SVG_NS,"path"\)/);
   assert.doesNotMatch(code,/\.toDataURL\(|\.getImageData\(/);
   assert.doesNotMatch(code,/transform:translate3d|scale\(var\(--preview-zoom\)\)/);
