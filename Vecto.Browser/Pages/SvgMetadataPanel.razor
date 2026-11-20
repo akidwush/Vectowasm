@@ -66,6 +66,18 @@
                 <div><dt>Piksel dilabel ulang</dt><dd>@Diagnostics.RegionMergeV1ChangedPixels.ToString("N0")</dd></div>
                 <div><dt>Batas luas region kecil</dt><dd>@Options.RegionMergeMaxAreaV1.ToString("N0") px</dd></div>
             }
+            <div><dt>Stacked Layer Reasoning V1</dt><dd>@(Options.StackedLayerReasoningV1 && Options.ShapeMode == ShapeMode.Stacked ? "ON (eksperimen)" : "OFF")</dd></div>
+            @if (Options.StackedLayerReasoningV1 && Options.ShapeMode == ShapeMode.Stacked)
+            {
+                <div><dt>Path sebelum / sesudah</dt><dd>@Diagnostics.StackedLayers.BaselinePaths.ToString("N0") / @Diagnostics.StackedLayers.OutputPaths.ToString("N0")</dd></div>
+                <div><dt>Path kandidat eksperimen</dt><dd>@Diagnostics.StackedLayers.CandidatePaths.ToString("N0")</dd></div>
+                <div><dt>Path berkurang</dt><dd>@Diagnostics.StackedLayers.PathsSaved.ToString("N0")</dd></div>
+                <div><dt>Region bergeser urutan layer</dt><dd>@Diagnostics.StackedLayers.ReorderedRegions.ToString("N0")</dd></div>
+                <div><dt>Dependensi occlusion</dt><dd>@Diagnostics.StackedLayers.OcclusionDependencies.ToString("N0")</dd></div>
+                <div><dt>Piksel render pembanding</dt><dd>@Diagnostics.StackedLayers.ComparedPixels.ToString("N0")</dd></div>
+                <div><dt>Selisih piksel render</dt><dd>@Diagnostics.StackedLayers.PixelMismatches.ToString("N0")</dd></div>
+                <div><dt>Fallback ke Stacked lama</dt><dd>@(Diagnostics.StackedLayers.Reverted ? "Ya — kandidat ditolak" : "Tidak")</dd></div>
+            }
             <div><dt>Local Edge V3</dt><dd>@(Options.LocalEdgeRefinementV3 ? "ON (eksperimen)" : "OFF")</dd></div>
             <div><dt>Titik digeser oleh V3</dt><dd>@Diagnostics.LocalEdgeV3MovedPoints.ToString("N0")</dd></div>
             <div><dt>Batas perpindahan V3</dt><dd>@(Options.LocalEdgeRefinementV3 ? $"{Options.LocalEdgeMaxShiftV3:N2} px" : "Tidak aktif")</dd></div>
