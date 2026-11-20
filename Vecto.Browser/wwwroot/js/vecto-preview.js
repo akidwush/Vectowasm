@@ -283,10 +283,11 @@
         Math.round(state.split) + " persen Before, " +
         Math.round(100 - state.split) + " persen After");
     }
+    const enabled = !!root.querySelector("[data-preview-viewport]");
     const out = root.querySelector("[data-preview-zoom-out]");
-    if (out && !out.hasAttribute("disabled")) out.disabled = state.zoom <= MIN_ZOOM;
+    if (out) out.disabled = !enabled || state.zoom <= MIN_ZOOM;
     const plus = root.querySelector("[data-preview-zoom-in]");
-    if (plus && !plus.hasAttribute("disabled")) plus.disabled = state.zoom >= MAX_ZOOM;
+    if (plus) plus.disabled = !enabled || state.zoom >= MAX_ZOOM;
   }
   function dispose(root) {
     const state = instances.get(root);
