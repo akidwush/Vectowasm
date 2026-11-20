@@ -207,7 +207,7 @@ public static class Tracer
                     ChainGeometry.SmoothInPlace(chain.Points, chain.Closed, pins, p.SmoothIterations, p.SmoothLambda, smoothClamp);
                     ChainGeometry.SubpixelRefine(chain.Points, chain.Closed, pins, edgeSamplingImage,
                         ColorOf(chain.Left), ColorOf(chain.Right), p.SubpixelMaxShift,
-                        options.EdgeCoverageThreshold);
+                        options.EdgeCoverageThreshold, options.LocalEdgeCurvatureGuard);
                     // light second pass: per-point refinement estimates jitter; smoothing them
                     // (clamped to the refined positions) costs <0.25px but many fewer nodes
                     ChainGeometry.SmoothInPlace(chain.Points, chain.Closed, pins, 3, 0.5, 0.25);

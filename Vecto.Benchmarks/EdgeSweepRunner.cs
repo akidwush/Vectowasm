@@ -43,12 +43,16 @@ internal static class EdgeSweepRunner
         var baselineSvg = SvgWriter.Write(baseline.Document);
         File.WriteAllText(Path.Combine(output, "baseline_planar_off.svg"), baselineSvg, Encoding.UTF8);
 
-        var cases = new List<(string Sample, double Coverage, RasterImage? Reference)>();
+        var cases = new List<(string Sample, double Coverage, RasterImage? Reference, bool Guard)>();
         foreach (double coverage in new[] { .40, .45, .475, .50, .525, .55, .60 })
         {
-            cases.Add(("prepared", coverage, null));
-            cases.Add(("raw", coverage, original));
+            cases.Add(("prepared", coverage, null, false));
+            cases.Add(("raw", coverage, original, false));
         }
+
+        // Local guard A/B: same JPEG, 50% reference and 52.5% candidate, both sampling sources.
+        cases.Add(("prepared", .525, null, true));
+        cases.Add(("raw", .525, original, true));
 
         foreach (var shape in new[] { ShapeMode.Planar, ShapeMode.Stacked })
         {
@@ -56,11 +60,12 @@ internal static class EdgeSweepRunner
             foreach (var c in cases)
             {
                 var opts = Options(shape, optimize, c.Coverage, c.Reference);
+                opts.LocalEdgeCurvatureGuard = c.Guard;
                 var stopwatch = Stopwatch.StartNew();
                 var result = Tracer.Trace(prepared.Image, opts);
                 stopwatch.Stop();
 
-                string id = $"{shape.ToString().ToLowerInvariant()}_{c.Sample}_t{(int)Math.Round(c.Coverage * 1000):D3}";
+                string id = $"{shape.ToString().ToLowerInvariant()}_{c.Sample}_t{(int)Math.Round(c.Coverage * 1000):D3}" + (c.Guard ? "_local" : "");
                 string svg = SvgWriter.Write(result.Document);
                 File.WriteAllText(Path.Combine(output, id + ".svg"), svg, Encoding.UTF8);
 
