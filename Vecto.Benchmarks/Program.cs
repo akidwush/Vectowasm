@@ -48,6 +48,7 @@ internal static class BenchmarkRunner
             Console.WriteLine("Usage: dotnet run --project Vecto.Benchmarks -c Release -- --image input.png [--json result.json] [--csv result.csv] [--svg-dir output] [--repeat 3]");
             Console.WriteLine("       dotnet run --project Vecto.Benchmarks -c Release -- --demo [--json result.json]");
             Console.WriteLine("Optional: --detail Low|Medium|High --style Auto|Crisp|Blended|Photo --background FFFFFF --mask-threshold 45");
+            Console.WriteLine("Experimental: --accent-ink enables rare-color palette guard; --single-stacked traces only Stacked/Global DP.");
             Console.WriteLine("PNG and JPEG are decoded with the project's C# decoders; unsupported layouts fail, not silently converted.");
             return args.Length == 0 ? 1 : 0;
         }
@@ -87,6 +88,8 @@ internal static class BenchmarkRunner
 
         var details = Enum.Parse<DetailLevel>(Value(args, "--detail") ?? "Medium", true);
         var style = Enum.Parse<ImageStyle>(Value(args, "--style") ?? "Auto", true);
+        bool accentInk = args.Contains("--accent-ink");
+        bool onlyStacked = args.Contains("--single-stacked");
         int repeat = int.Parse(Value(args, "--repeat") ?? "1", CultureInfo.InvariantCulture);
         if (repeat is < 1 or > 8) throw new ArgumentOutOfRangeException(nameof(repeat), "Repeat must be 1 to 8.");
         double maskThreshold = double.Parse(Value(args, "--mask-threshold") ?? "45", CultureInfo.InvariantCulture);
@@ -110,10 +113,12 @@ internal static class BenchmarkRunner
             ("stacked_global_dp", ShapeMode.Stacked, true, BezierOptimizationMode.GlobalDp),
         };
 
+        if (onlyStacked) specs = specs.Where(spec => spec.Name == "stacked_global_dp").ToArray();
         // Keep decode/cleanup/palette inference outside trace timings so
         // rows differ only in geometry optimization and stacking.
         Console.WriteLine("Input: " + sourceName + " (" + original.Width + "x" + original.Height +
             "), precleaned pixels " + prepared.ChangedPixels + "; inferred inks " + analysis.EstimatedInkCount);
+        Console.WriteLine("Accent Ink V1: " + (accentInk ? "EXPERIMENTAL ON" : "OFF"));
         var rows = new List<BenchmarkRow>();
         string? svgDirectory = Value(args, "--svg-dir");
         if (svgDirectory is not null) Directory.CreateDirectory(svgDirectory);
@@ -143,6 +148,7 @@ internal static class BenchmarkRunner
                     BezierMode = spec.Mode,
                     PaletteMode = PaletteMode.Auto,
                     MaxColors = analysis.RecommendedMaxColors,
+                    AccentInkV1 = accentInk,
                 };
                 var timer = Stopwatch.StartNew();
                 traced = Tracer.Trace(prepared.Image, traceOptions);
