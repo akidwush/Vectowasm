@@ -85,3 +85,51 @@ DikaTracer workflow. Otherwise use measured failures to improve the C#
 Bezier fitting or accent-color palette preservation.
 
 **Do not merge this branch before reviewing actual image results.**
+
+
+## First real tiger benchmark: VTracer loses (not a production upgrade)
+
+We executed the pinned Rust WASM directly on the uploaded `tiger.jpg`
+**without uploading that image to GitHub**. Both Rust presets traced a 768×768
+resized raster. Existing DikaTracer and Vector Magic SVGs retained their
+original geometry. All five outputs were rasterized by CairoSVG at **512×512**
+and compared to the same source JPEG downsample at 512×512.
+
+| Candidate | RGB MAE ↓ | Gaussian RGB SSIM ↑ | Dark IoU ↑ | SVG paths | SVG geometric command tokens | SVG bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Vector Magic Stacked | **3.618** | **0.94520** | **97.32%** | 84 | **1,345** | 63,692 |
+| DikaTracer Experimental | 4.363 | 0.94260 | 96.95% | 46 | 2,393 | 90,234 |
+| DikaTracer Baseline | 4.376 | 0.94249 | 96.96% | 294 | 2,395 | 101,252 |
+| Covecto/VTracer poster (768) | 6.501 | 0.91206 | 94.04% | 3,024 | 36,565 | 1,261,325 |
+| Covecto/VTracer photo (768) | 8.419 | 0.87954 | 91.68% | 205 | 10,502 | 381,264 |
+
+These values are **not the browser's 8×8 local SSIM**; Gaussian SSIM was
+computed externally with scikit-image to compare real SVG renders. The
+metric resolution and Rust trace downscaling are crucial to interpretation.
+
+Conclusion: **do not adopt VTracer as the DikaTracer default on this
+complex mascot**. Covecto Spline poster preserves the yellow irises that both
+DikaTracer and Vector Magic omitted, but produces extreme path fragmentation
+and worse source-relative image error. This is a clue about small chromatic
+regions, not evidence VTracer's geometry is superior.
+
+### Next algorithm experiment: Accent Ink V1
+The PR also adds a completely opt-in C# `AccentInkPaletteV1`. It looks for
+small but spatially coherent saturated **solid source pixels** that the global
+palette may underweight. Coarse hue/value groups and local 4-neighbor flatness
+must receive sufficient support in one 24px tile. A candidate must be far from
+every existing Oklab palette seed. At most two additions are permitted, and
+the original max-color budget is respected. Only `Blended` non-exact palette
+mode runs the pass, so Crisp exact colors and Photo are unaffected.
+No source pixel is rewritten: existing segmentation, boundary topology and
+curve-fitting still decide output. Defaults **OFF**.
+
+Synthetic tests ensure a yellow eye absent from the starter palette can be
+recovered, a scattered chromatic speckle cannot, palette bounds are respected,
+and exact/disabled outputs remain byte-identical.
+
+**Important:** An 18×18 synthetic test is not proof of better tiger image
+fidelity. Next release gate: run the same 1536×1536 tiger image in **Blended /
+Stacked / High** with Accent Ink V1 OFF and ON; compare eye saturation,
+preservation of actual yellow, input-relative MAE/SSIM and geometry count.
+Decline to enable by default if error or topology regress. No production merge.
