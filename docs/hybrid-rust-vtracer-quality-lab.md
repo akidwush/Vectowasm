@@ -133,3 +133,35 @@ fidelity. Next release gate: run the same 1536×1536 tiger image in **Blended /
 Stacked / High** with Accent Ink V1 OFF and ON; compare eye saturation,
 preservation of actual yellow, input-relative MAE/SSIM and geometry count.
 Decline to enable by default if error or topology regress. No production merge.
+
+
+### Real C# A/B after Accent Ink V1: partial improvement only, NOT accepted
+
+We built the self-contained Linux C# benchmark from this PR, and **executed
+it locally on the user's original 1536×1536 tiger.jpg** (not in a public CI
+fixture). Both modes used identical **Blended / High / Stacked + Global DP**,
+recommended AutoPaletteEstimator color budget, and the same PixelCompressor.
+
+| Full-resolution C# output | MAE ↓ | Internal local SSIM ↑ | Mask IoU ↑ | Paths | Geometric segments | P99 boundary error |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Baseline (Accent OFF) | 5.7973 | **0.92309** | 96.672% | **551** | **6,315** | **2.236px** |
+| Accent V1 (initial, no hue guard) | **5.6593** | 0.92409 | 96.752% | 607 | 6,950 | 2.828px |
+| Accent V1 + hue guard (current) | 5.7838 | 0.92273 | 96.677% | 562 | 6,377 | 2.236px |
+
+This is **a different trace configuration and quality metric resolution**
+from the uploaded, exported DikaTracer baseline SVG described above:
+do not compare these numbers to the 512px external Gaussian SSIM.
+
+The first V1 added a **dark brown** pigment, not the desired yellow. Adding
+the Oklab hue novelty gate suppresses redundant brown shading and creates a
+more ochre-colored palette seed, but does **not** restore the eyes accurately
+enough. In the current version, SSIM drops marginally and complexity rises.
+Thus the new C# palette heuristic is **not a confirmed quality improvement**.
+It stays OFF, and should not be enabled automatically or merged into the
+production engine without better evidence. The separate Rust A/B lab is
+still a useful validated benchmark.
+
+The next optimization should be an error-guided **local region palette**
+candidate evaluated with the *original source*, preserving topological
+boundaries and rejecting any candidate that worsens fidelity/complexity.
+A global hue detector by itself is not sufficient on this tiger.
