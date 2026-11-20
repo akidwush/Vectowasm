@@ -135,6 +135,8 @@
                         <div class="advanced-inside">
                             <label class="check-option"><input type="checkbox" @bind="regionMergeV1" disabled="@(running || loadingFile)" /> Region Merge V1 (eksperimen, opt-in)</label>
                             <p class="help-text">Menggabungkan hanya fragmentasi kecil bila warna sumber dan batas mendukung. Ini terpisah dari Local Edge V3, tidak mengaktifkan otomatis.</p>
+                            <label class="check-option"><input type="checkbox" @bind="antiAliasBandV1" disabled="@(running || loadingFile)" /> Anti-alias Aware Segmentation V1 (eksperimen)</label>
+                            <p class="help-text">Mendeteksi pita warna transisi tipis yang tersisa di antara dua warna solid. Perlindungan warna asli, gradient lebar, dan transparansi; otomatis dilewati untuk input bertekstur / palet exact.</p>
                             <label class="check-option"><input type="checkbox" @bind="stackedLayerReasoningV1" disabled="@(running || loadingFile || shapeMode != ShapeMode.Stacked)" /> Stacked Layer Reasoning V1 (eksperimen)</label>
                             <p class="help-text">Khusus Bentuk Bertumpuk: menyusun layer berdasarkan hubungan tutup-menutup dan menggabungkan path sewarna. Otomatis memakai hasil Stacked biasa jika render pembanding berubah. Aktifkan Bentuk Bertumpuk terlebih dahulu.</p>
                             <label>Seed <input type="number" @bind="seed" /></label>
@@ -295,6 +297,7 @@
     private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
     private bool regionMergeV1;
+    private bool antiAliasBandV1;
     private bool stackedLayerReasoningV1;
     private bool curveFitting = true;
     private bool optimizeNodes = true;
@@ -436,6 +439,7 @@
         EdgeCoverageThreshold = 0.5,
         LocalEdgeRefinementV3 = enableV3,
         RegionMergeV1 = regionMergeV1,
+        AntiAliasBandV1 = antiAliasBandV1,
         StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked
     };
 
@@ -522,6 +526,13 @@
             string mergeInfo = traceOptions.RegionMergeV1
                 ? $" · Region Merge V1: -{traced.Diagnostics.RegionMergeV1MergedRegions:N0} region / {traced.Diagnostics.RegionMergeV1ChangedPixels:N0} piksel"
                 : "";
+            string aaInfo = traceOptions.AntiAliasBandV1
+                ? traced.Diagnostics.AntiAliasBandsSkipped
+                    ? " · Anti-alias Band V1: dilewati (exact/textured)"
+                    : traced.Diagnostics.AntiAliasBands.RolledBack
+                        ? " · Anti-alias Band V1: rollback (topologi)"
+                        : $" · Anti-alias Band V1: -{traced.Diagnostics.AntiAliasBands.BandsReassigned:N0} pita / {traced.Diagnostics.AntiAliasBands.PixelsReassigned:N0} piksel"
+                : "";
             string stackedInfo = traceOptions.StackedLayerReasoningV1
                 ? traced.Diagnostics.StackedLayers.Reverted
                     ? $" · Stacked Layer V1: fallback (selisih {traced.Diagnostics.StackedLayers.PixelMismatches:N0} piksel)"
@@ -530,7 +541,7 @@
             string v3Info = useV3
                 ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
                 : " · Engine Original";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{stackedInfo}";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{aaInfo}{stackedInfo}";
 
             if (compare && originalTrace is not null && originalSvg is not null && originalOptions is not null)
             {
