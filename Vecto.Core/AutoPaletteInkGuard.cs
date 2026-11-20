@@ -89,7 +89,9 @@ public static class AutoPaletteInkGuard
             foreach (var color in pal)
                 nearest = Math.Min(nearest, Oklab.DistSq(candidate, color));
             if (nearest < MissingDistanceSq) continue;
-            double score = count * nearest;
+            // Square-root support prevents an abundant near-duplicate shade
+            // from outranking a smaller but genuinely different green ink.
+            double score = Math.Sqrt(count) * nearest;
             if (score <= bestScore) continue;
             bestScore = score;
             best = new Evidence(new Rgba32(r, g, b, 255), count, nearest);
