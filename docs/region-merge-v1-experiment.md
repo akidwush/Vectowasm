@@ -36,3 +36,18 @@ Before ever enabling V1 by default, benchmark on the exact uploaded tiger JPEG w
 **Reject or revise** if the feature removes actual detail, worsens source error beyond benchmark tolerances, or shows no compelling benefit. A lower path count alone is not a fidelity win.
 
 This is an experiment in a draft PR; **do not merge to main** until reviewed and benchmarked on representative real images.
+
+## Priority 2 (same PR): topology-safe region graph
+
+The second research step is additive to the opt-in V1 pass and remains **unmerged**. This is a conservative topology safety improvement, not a new global shape-fitting or stacking algorithm.
+
+- Each merge must now erase only a tiny *fully enclosed* mislabeled island inside **one** stable 4-connected destination component: all exposed 4-neighbor edges must border that destination component. Touching a third region, transparency, the image frame or a different component vetoes the merge.
+- A 2×2 pixel-corner scan finds 3+ region T/cross junctions and diagonal checkerboards. Regions touching those pixels are protected so the planar graph's junction successor order does not change.
+- After proposed merges, connected-component count must decline by **exactly** the number of accepted islands; otherwise revert the entire pass and report a topology rejection. No partial state is kept on failure.
+- When V1 is ON, `BoundaryTopologyValidator` inspects the unmodified lattice cracks before Bézier smoothing: each segment must have the exact source-region pair, every adjoining region must reuse the shared crack exactly once (with opposite direction), and every region contour must close without gaps. An invalid graph throws an experimental error rather than exporting an unchecked corrupt SVG.
+- Metadata includes **topology-rejected regions**, **verified crack segments** and **verified closed contours**. Both Planar and Stacked use the same validated segmentation graph.
+- Added regression fixtures for 3-color T-junctions, diagonal pinch points, four-way multi-color crossings, transparent holes, deterministic merges and full-raster planar/stacked equality on exact-palette shapes.
+
+**Scope and limitations:** The tighter guard deliberately rejects many ambiguous fringe candidates; it may yield zero merges on the tiger. This stage protects topology and eliminates a risky class of changes; it does not promise fewer paths or improved raster fidelity. It does not detect geometric crossings introduced later by Bézier smoothing; those require separate geometric validation in a subsequent stage. The 0.1% label-change budget and all existing appearance-confidence checks remain in force.
+
+**Merge policy remains unchanged:** PR #18 is Draft, `RegionMergeV1=false` by default, and `main` must not change. A real tiger A/B must be run before enabling anything by default.
