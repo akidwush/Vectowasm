@@ -173,8 +173,14 @@ public static class Tracer
                     double tolerance = Math.Clamp(Math.Sqrt(p.FitToleranceSq), 0.3, 0.9);
                     var pairwise = BezierNodeOptimizer.Reduce(
                         chain.Curve, protectedPins, tolerance);
-                    var global = GlobalBezierOptimizer.Reduce(
-                        chain.Curve, protectedPins, tolerance);
+                    if (options.BezierMode == BezierOptimizationMode.Pairwise)
+                    {
+                        chain.Curve = pairwise;
+                    }
+                    else
+                    {
+                        var global = GlobalBezierOptimizer.Reduce(
+                            chain.Curve, protectedPins, tolerance);
                     // Never ship a higher segment count than the known-good
                     // local optimizer. Both variants are independently bounded
                     // against the unmodified fitted shared-edge geometry.
@@ -183,7 +189,8 @@ public static class Tracer
                         chain.Curve = global;
                         System.Threading.Interlocked.Increment(ref globalReducedChains);
                     }
-                    else chain.Curve = pairwise;
+                        else chain.Curve = pairwise;
+                    }
                 }
                 System.Threading.Interlocked.Add(ref optimizedChainNodes, chain.Curve.Count);
 

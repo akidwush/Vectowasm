@@ -328,3 +328,43 @@ for (int i = 0; i < withRaster.Pixels.Length; i += 4)
 }
 Check(changedInFixture <= 80,
     "Global optimizer stays within 2 percent raster change in nested fixture");
+
+
+// Benchmark engine modes must be strictly separable without changing palette
+// or topology, and production default must remain GlobalDp.
+Check(new TraceOptions().BezierMode == BezierOptimizationMode.GlobalDp,
+    "Production node optimization mode remains Global DP");
+var modeFixture = StackedFixture();
+var modeOff = Tracer.Trace(modeFixture, new TraceOptions {
+    ShapeMode = ShapeMode.Planar, Style = ImageStyle.Crisp,
+    OptimizeNodes = false, CurveFitting = true
+});
+var modePairwise = Tracer.Trace(modeFixture, new TraceOptions {
+    ShapeMode = ShapeMode.Planar, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, BezierMode = BezierOptimizationMode.Pairwise
+});
+var modeGlobal = Tracer.Trace(modeFixture, new TraceOptions {
+    ShapeMode = ShapeMode.Planar, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, BezierMode = BezierOptimizationMode.GlobalDp
+});
+var modeStacked = Tracer.Trace(modeFixture, new TraceOptions {
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, BezierMode = BezierOptimizationMode.GlobalDp
+});
+Check(modeOff.Diagnostics.FittedChainNodes == modeOff.Diagnostics.OptimizedChainNodes,
+    "Off benchmark uses unoptimized fitted chains");
+Check(modePairwise.Diagnostics.GlobalReducedChains == 0,
+    "Pairwise benchmark never invokes global DP");
+Check(modePairwise.Diagnostics.OptimizedChainNodes <= modeOff.Diagnostics.FittedChainNodes,
+    "Pairwise benchmark never adds chain segments");
+Check(modeGlobal.Diagnostics.OptimizedChainNodes <= modePairwise.Diagnostics.OptimizedChainNodes,
+    "Global DP benchmark never worsens pairwise segment count");
+Check(modeOff.Document.Regions.Count == modePairwise.Document.Regions.Count &&
+      modeOff.Document.Regions.Count == modeGlobal.Document.Regions.Count &&
+      modeOff.Document.Regions.Count == modeStacked.Document.Regions.Count,
+    "Four benchmark configurations preserve connected region count");
+Check(modeOff.Document.Regions.Sum(x => x.Loops.Count) ==
+      modePairwise.Document.Regions.Sum(x => x.Loops.Count) &&
+      modeOff.Document.Regions.Sum(x => x.Loops.Count) ==
+      modeGlobal.Document.Regions.Sum(x => x.Loops.Count),
+    "Planar benchmark compares identical path topology");

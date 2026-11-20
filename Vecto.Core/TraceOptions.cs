@@ -17,6 +17,9 @@ public enum PaletteMode { Auto, FixedCount }
 
 public enum ShapeMode { Planar, Stacked }
 
+/// <summary>Controls which post-fit node reduction algorithm is run.</summary>
+public enum BezierOptimizationMode { Pairwise, GlobalDp }
+
 public sealed class TraceOptions
 {
     public PaletteMode PaletteMode { get; set; } = PaletteMode.Auto;
@@ -31,6 +34,8 @@ public sealed class TraceOptions
     public bool CurveFitting { get; set; } = true;
     /// <summary>Reduce redundant fitted cubic segments while preserving sharp corners.</summary>
     public bool OptimizeNodes { get; set; } = true;
+    /// <summary>Only used when OptimizeNodes and CurveFitting are enabled. GlobalDp remains production default.</summary>
+    public BezierOptimizationMode BezierMode { get; set; } = BezierOptimizationMode.GlobalDp;
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>
     public double PolygonEpsilon { get; set; } = -1;
     public int Seed { get; set; } = 1;
