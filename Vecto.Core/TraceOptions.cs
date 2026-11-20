@@ -48,6 +48,9 @@ public sealed class TraceOptions
     public double LocalEdgeMinGradientV3 { get; set; } = 0.25;
     /// <summary>V3 confidence filter: do not move vertices for negligible coverage residual.</summary>
     public double LocalEdgeMinCandidateShiftV3 { get; set; } = 0.012;
+    /// <summary>Experimental whole-band anti-alias segmentation; Blended & non-textured only.
+    /// OFF by default to preserve every existing production SVG.</summary>
+    public bool AntiAliasBandV1 { get; set; } = false;
     /// <summary>Experiment only. Source-aware merging of tiny colour-fringe regions before extracting boundaries.</summary>
     public bool RegionMergeV1 { get; set; } = false;
     /// <summary>Maximum area of a region eligible for guarded merge; 1..128.</summary>
