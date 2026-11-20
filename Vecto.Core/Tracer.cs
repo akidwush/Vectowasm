@@ -64,7 +64,15 @@ public static class Tracer
     {
         var total = Stopwatch.StartNew();
         var p = Resolve(options, image);
+        if (!double.IsFinite(options.EdgeCoverageThreshold) ||
+            options.EdgeCoverageThreshold < 0.35 || options.EdgeCoverageThreshold > 0.65)
+            throw new ArgumentOutOfRangeException(nameof(options.EdgeCoverageThreshold),
+                "Experimental edge coverage must be between 0.35 and 0.65.");
+        if (options.EdgeReferenceImage is { } reference &&
+            (reference.Width != image.Width || reference.Height != image.Height))
+            throw new ArgumentException("Edge reference dimensions must equal tracing raster dimensions.");
         var img = p.MedianPrefilter ? Preprocess.Median3x3(image, ct) : image;
+        var edgeSamplingImage = options.EdgeReferenceImage ?? img;
         int w = img.Width, h = img.Height;
 
         progress?.Invoke("palette", 0.0);
@@ -197,8 +205,9 @@ public static class Tracer
                 void Process(List<int> pins)
                 {
                     ChainGeometry.SmoothInPlace(chain.Points, chain.Closed, pins, p.SmoothIterations, p.SmoothLambda, smoothClamp);
-                    ChainGeometry.SubpixelRefine(chain.Points, chain.Closed, pins, img,
-                        ColorOf(chain.Left), ColorOf(chain.Right), p.SubpixelMaxShift);
+                    ChainGeometry.SubpixelRefine(chain.Points, chain.Closed, pins, edgeSamplingImage,
+                        ColorOf(chain.Left), ColorOf(chain.Right), p.SubpixelMaxShift,
+                        options.EdgeCoverageThreshold);
                     // light second pass: per-point refinement estimates jitter; smoothing them
                     // (clamped to the refined positions) costs <0.25px but many fewer nodes
                     ChainGeometry.SmoothInPlace(chain.Points, chain.Closed, pins, 3, 0.5, 0.25);

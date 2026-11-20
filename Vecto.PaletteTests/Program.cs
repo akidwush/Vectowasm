@@ -368,3 +368,32 @@ Check(modeOff.Document.Regions.Sum(x => x.Loops.Count) ==
       modeOff.Document.Regions.Sum(x => x.Loops.Count) ==
       modeGlobal.Document.Regions.Sum(x => x.Loops.Count),
     "Planar benchmark compares identical path topology");
+
+
+// Sub-pixel sampling benchmark hooks are opt-in. Production defaults remain
+// the same as before and are checked against the explicit 0.50 coverage.
+var subPixelArt = StackedFixture();
+var defaultSubpixel = Tracer.Trace(subPixelArt, new TraceOptions {
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, BezierMode = BezierOptimizationMode.GlobalDp
+});
+var explicitSubpixel = Tracer.Trace(subPixelArt, new TraceOptions {
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, BezierMode = BezierOptimizationMode.GlobalDp,
+    EdgeCoverageThreshold = .5, EdgeReferenceImage = subPixelArt
+});
+Check(SvgWriter.Write(defaultSubpixel.Document) == SvgWriter.Write(explicitSubpixel.Document),
+    "Default edge sampler is bit-identical to explicit coverage=0.50 on same raster");
+var shiftedCoverage = Tracer.Trace(subPixelArt, new TraceOptions {
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, EdgeCoverageThreshold = .46
+});
+Check(shiftedCoverage.Document.Regions.Count == defaultSubpixel.Document.Regions.Count,
+    "Coverage change cannot create or delete connected regions");
+bool edgeDimensionRejected = false;
+try {
+    Tracer.Trace(subPixelArt, new TraceOptions {
+        EdgeReferenceImage = new RasterImage(24, 24)
+    });
+} catch (ArgumentException) { edgeDimensionRejected = true; }
+Check(edgeDimensionRejected, "Edge source must match target raster dimensions");

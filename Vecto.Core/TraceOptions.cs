@@ -36,6 +36,10 @@ public sealed class TraceOptions
     public bool OptimizeNodes { get; set; } = true;
     /// <summary>Only used when OptimizeNodes and CurveFitting are enabled. GlobalDp remains production default.</summary>
     public BezierOptimizationMode BezierMode { get; set; } = BezierOptimizationMode.GlobalDp;
+    /// <summary>Experimental edge-coverage isovalue; default 0.5 retains the production behavior.</summary>
+    public double EdgeCoverageThreshold { get; set; } = 0.5;
+    /// <summary>Optional source RGBA for sub-pixel sampling only. Null uses tracing raster (production behavior).</summary>
+    public RasterImage? EdgeReferenceImage { get; set; }
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>
     public double PolygonEpsilon { get; set; } = -1;
     public int Seed { get; set; } = 1;

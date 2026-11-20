@@ -22,6 +22,7 @@ internal static class BenchmarkRunner
 
     private static int Execute(string[] args)
     {
+        if (args.Contains("--edge-sweep")) return EdgeSweepRunner.Run(args);
         if (args.Contains("--self-test"))
         {
             var fixture = DemoFixture();
