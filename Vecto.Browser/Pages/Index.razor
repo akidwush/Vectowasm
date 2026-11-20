@@ -53,9 +53,11 @@
                     <div class="detected-color">
                         <span>Jumlah warna</span>
                         <strong>@(autoEstimate is { } estimate
-                            ? protectedColorLimit is { } limit && limit > estimate.RecommendedMaxColors
-                                ? $"{estimate.EstimatedInkCount} terdeteksi · {limit} dijaga"
-                                : $"{estimate.EstimatedInkCount} (otomatis)"
+                            ? manualColorLimit > 0
+                                ? $"{estimate.EstimatedInkCount} terdeteksi · {manualColorLimit} dipilih"
+                                : protectedColorLimit is { } limit && limit > estimate.RecommendedMaxColors
+                                    ? $"{estimate.EstimatedInkCount} terdeteksi · {limit} dijaga"
+                                    : $"{estimate.EstimatedInkCount} (otomatis)"
                             : "Otomatis")</strong>
                     </div>
                     <div class="setting-grid">
@@ -71,6 +73,16 @@
                                 <option value="Crisp">Ilustrasi tajam</option>
                                 <option value="Blended">Ilustrasi halus</option>
                                 <option value="Photo">Foto</option>
+                            </select>
+                        </label>
+                        <label>Batas warna SVG
+                            <select @bind="manualColorLimit" disabled="@(running || loadingFile)">
+                                <option value="0">Otomatis (jaga warna aksen)</option>
+                                <option value="8">8 warna</option>
+                                <option value="12">12 warna</option>
+                                <option value="16">16 warna</option>
+                                <option value="24">24 warna</option>
+                                <option value="32">32 warna</option>
                             </select>
                         </label>
                         <label>Detail
@@ -256,6 +268,7 @@
     private DetailLevel detail = DetailLevel.Medium;
     private AutoPaletteEstimate? autoEstimate;
     private int? protectedColorLimit;
+    private int manualColorLimit; // 0 = preserve automatic; 8..32 = user override
     private int seed = 1;
     private bool regionMergeV1;
     private bool antiAliasBandV1;
@@ -442,7 +455,9 @@
         {
             // A/B must use identical inputs, colors and all other options.
             var image = preparedRaster ?? await RasterDecoder.DecodeAsync(sourceBytes, Js);
-            int colors = (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors;
+            int colors = manualColorLimit == 0
+                ? (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors
+                : manualColorLimit;
             bool compare = engineMode == "Compare";
             bool useV3 = engineMode != "Original";
 
@@ -453,7 +468,8 @@
             var baselineOptions = BuildOptions(colors, compare ? false : useV3);
             TraceResult selected = Tracer.Trace(image, baselineOptions);
             int originalBudget = colors;
-            if (style != ImageStyle.Photo && !selected.Diagnostics.Params.Textured && colors < 64)
+            if (manualColorLimit == 0 && style != ImageStyle.Photo &&
+                !selected.Diagnostics.Params.Textured && colors < 64)
             {
                 var missing = AutoPaletteInkGuard.FindMissing(image, selected);
                 if (missing is { } ink)
