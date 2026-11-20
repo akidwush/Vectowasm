@@ -103,3 +103,60 @@ bounded per-chain optimization, NOT a fully global resegmentation of
 raw pixels or ALIV/DiffVG differentiable raster fitting. No claim of a
 364-segment result or identical IoU/SSIM on arbitrary art is made until
 the specific source raster has been benchmarked.
+
+
+## Four-configuration vector fidelity benchmark (C#)
+
+A separate command-line project, Vecto.Benchmarks, compares exactly the
+same decoded/prepared raster and auto-inferred palette across four runs:
+
+1. planar_off — no post-fit Bézier optimization (cutout geometry)
+2. planar_pairwise — only the previous pairwise node optimizer
+3. planar_global_dp — pairwise vs global DP, accepting the better segment count
+4. stacked_global_dp — same global DP plus stacked opaque-hole reconstruction
+
+The normal browser UI is unchanged. Its production default remains
+OptimizeNodes=true and BezierMode=GlobalDp. The only core change is the new
+explicit BezierMode selector so a benchmark can isolate pairwise optimization.
+
+Use .NET 8 on a PC or Linux host. Feed the ORIGINAL raster that generated
+both competitor SVG files (not a screenshot, comparison montage or already
+rasterized SVG), otherwise fidelity metrics do not represent ground truth.
+
+    dotnet run --project Vecto.Benchmarks/Vecto.Benchmarks.csproj -c Release -- --image original-logo.png --repeat 3 --json benchmark.json --csv benchmark.csv --svg-dir benchmark-svg
+
+Supported benchmark input: non-interlaced standard PNG/JPEG formats handled by
+the repository's own C# decoders. Unsupported encodings fail explicitly;
+browser-only WebP/BMP and PNG canvas fallbacks are not available in this CLI.
+For a synthetic smoke test:
+
+    dotnet run --project Vecto.Benchmarks/Vecto.Benchmarks.csproj -c Release -- --self-test
+    dotnet run --project Vecto.Benchmarks/Vecto.Benchmarks.csproj -c Release -- --demo --json demo.json
+
+Optional CLI flags:
+- --detail Low|Medium|High, --style Auto|Crisp|Blended|Photo
+- --repeat 1..8: report median trace wall-time (not image decode or SVG rendering)
+- --background FFFFFF: manually choose a reference background instead of corner-color inference
+- --mask-threshold 45: RGB Euclidean distance used for foreground/background segmentation
+
+All four runs share the *same* in-memory pixel preparation and recommended
+Auto Palette size. The benchmark counts emitted top-level paths, subpaths,
+C/L segments, and micro-L segments shorter than 2 px. Times are wall-clock
+tracing milliseconds plus the fitting-stage milliseconds reported by Tracer.
+Trace timings can vary with JIT, hardware, power settings and run order.
+
+Fidelity is measured against the original raster at the original resolution:
+RGB mean absolute error, nonoverlapping 8x8 block luminance SSIM, foreground
+mask IoU, and symmetric boundary P99 / maximum distance in pixels. The boundary
+distance transform is exact Euclidean on a *rasterized binary mask* (not a
+continuous-path Hausdorff metric). A background color is inferred from the
+four raster corners unless --background is supplied; mask IoU and boundary
+metrics are only interpretable when that mask matches the intended subject.
+Block SSIM is deliberately not assumed equivalent to skimage sliding-window
+SSIM. The SVGs are rendered by the built-in CPU Rasterizer at supersample=1.
+The report includes the source size, preparation, and mask configuration.
+
+Most importantly: a lower SVG segment count alone is not a fidelity win.
+Compare Planar Off vs Pairwise vs Global before comparing Stacked. Test on
+the same raster as Vector Magic, and inspect localized sharp tips and
+small transparent holes before accepting any corner-merging change.

@@ -1,0 +1,53 @@
+name: DikaTrace four-mode benchmark validation
+on:
+  pull_request:
+  push:
+    branches: [feat/benchmark-4-configs-fidelity]
+permissions:
+  contents: read
+jobs:
+  four-mode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Existing engine regression tests
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Ground-truth metrics identity tests
+        run: dotnet run --project Vecto.Benchmarks/Vecto.Benchmarks.csproj -c Release -- --self-test
+      - name: Generate 4-way synthetic benchmark
+        run: dotnet run --project Vecto.Benchmarks/Vecto.Benchmarks.csproj -c Release -- --demo --json benchmark.json --csv benchmark.csv --svg-dir demo-svg
+      - name: Assert test matrix and ungrouped output
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("benchmark.json").read_text())
+          rows = data["Results"]
+          assert [r["Mode"] for r in rows] == [
+              "planar_off", "planar_pairwise",
+              "planar_global_dp", "stacked_global_dp"]
+          assert len(set(r["Paths"] for r in rows)) == 1
+          assert len(set(r["Subpaths"] for r in rows[:3])) == 1
+          assert rows[1]["GlobalReducedChains"] == 0
+          assert rows[2]["OptimizedChainNodes"] <= rows[1]["OptimizedChainNodes"]
+          assert rows[1]["OptimizedChainNodes"] <= rows[0]["FittedChainNodes"]
+          assert rows[3]["Subpaths"] <= rows[2]["Subpaths"]
+          for r in rows:
+              assert 0 <= r["MaskIou"] <= 1
+              assert r["MicroLines"] <= r["Lines"]
+              svg = Path("demo-svg", r["Mode"] + ".svg").read_text()
+              assert "<g " not in svg and "</g>" not in svg
+          print("PASS 4-way benchmark matrix and shape regression checks")
+          PY
+      - name: Browser WebAssembly release build
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dikatrace-benchmark-synthetic
+          path: |
+            benchmark.json
+            benchmark.csv
+            demo-svg/
