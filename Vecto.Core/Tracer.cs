@@ -44,6 +44,7 @@ public sealed class TraceDiagnostics
     public int RegionMergeV1RejectedByTopology { get; init; }
     public int RegionMergeV1VerifiedCracks { get; init; }
     public int RegionMergeV1VerifiedContours { get; init; }
+    public StackedLayerStats StackedLayers { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -286,8 +287,10 @@ public static class Tracer
             });
         }
         var originalDoc = new VectorDocument { Width = w, Height = h, Palette = palette, Regions = regions };
+        StackedLayerStats stackedLayerAudit = default;
         var doc = options.ShapeMode == ShapeMode.Stacked
-            ? StackedShapeBuilder.Build(originalDoc, seg, graph, regionOrder, ct)
+            ? StackedShapeBuilder.Build(originalDoc, seg, graph, regionOrder, ct,
+                options.StackedLayerReasoningV1, audit => stackedLayerAudit = audit)
             : originalDoc;
         if (options.ShapeMode == ShapeMode.Stacked)
             nodes = doc.Regions.Sum(r => r.Loops.Sum(loop => loop.Count));
@@ -308,6 +311,7 @@ public static class Tracer
             RegionMergeV1RejectedByTopology = regionMerge.TopologyRejectedRegions,
             RegionMergeV1VerifiedCracks = topologyAudit.Cracks,
             RegionMergeV1VerifiedContours = topologyAudit.ClosedContours,
+            StackedLayers = stackedLayerAudit,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
