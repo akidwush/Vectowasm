@@ -41,6 +41,10 @@ jobs:
           assert 'var traced = compare ? Tracer.Trace(image, traceOptions) : selected;' in ui
           assert 'BuildOptions(colors, compare ? false : useV3)' in ui
           assert 'AutoPaletteInkGuard.IsImprovement(image, selected, candidate, ink)' in ui
+          assert 'manualColorLimit == 0' in ui
+          assert '<option value="8">8 warna</option>' in ui
+          assert '<option value="12">12 warna</option>' in ui
+          assert 'protectedColorLimit = colors > originalBudget ? colors : null;' in ui
           assert 'bool useV3 = engineMode != "Original";' in ui
           assert 'LocalEdgeRefinementV3 { get; set; } = false;' in opts
           assert 'measureSvgPair(inputUrl, originalSvgUrl, v3SvgUrl)' in js
