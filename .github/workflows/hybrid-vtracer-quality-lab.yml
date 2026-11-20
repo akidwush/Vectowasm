@@ -1,0 +1,80 @@
+name: Hybrid Rust VTracer quality lab (isolated)
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Browser/wwwroot/lab/**'
+      - '.github/workflows/hybrid-vtracer-quality-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check lab JavaScript syntax and deterministic metrics
+        run: |
+          node --check Vecto.Browser/wwwroot/lab/lab.mjs
+          node --check Vecto.Browser/wwwroot/lab/covecto-worker.js
+          node --check Vecto.Browser/wwwroot/lab/quality-metrics.mjs
+          node --test Vecto.Browser/wwwroot/lab/tests/metrics.test.mjs
+      - name: Fetch pinned MIT-licensed Covecto v0.3.0 source
+        shell: bash
+        run: |
+          git clone https://github.com/codecoradev/covecto.git /tmp/covecto
+          cd /tmp/covecto
+          git checkout --detach b9142fbb6516b179afa76d6bb831dfeea54f5132
+          test "$(git rev-parse HEAD)" = "b9142fbb6516b179afa76d6bb831dfeea54f5132"
+          test -f LICENSE
+          grep -q 'MIT' Cargo.toml
+      - name: Build pinned Covecto Rust WebAssembly
+        shell: bash
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cd /tmp/covecto
+          cargo build --locked --release -p covecto-wasm --target wasm32-unknown-unknown
+          test -s target/wasm32-unknown-unknown/release/covecto_wasm.wasm
+          node crates/wasm/tests/smoke.mjs target/wasm32-unknown-unknown/release/covecto_wasm.wasm
+      - name: Bundle Rust binary alongside isolated lab
+        shell: bash
+        run: |
+          cp /tmp/covecto/target/wasm32-unknown-unknown/release/covecto_wasm.wasm Vecto.Browser/wwwroot/lab/covecto.wasm
+          cp /tmp/covecto/LICENSE Vecto.Browser/wwwroot/lab/COVECTO-LICENSE.txt
+          test -s Vecto.Browser/wwwroot/lab/covecto.wasm
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("Vecto.Browser/wwwroot/lab")
+          html=(root/"index.html").read_text()
+          worker=(root/"covecto-worker.js").read_text()
+          assert 'type="module" src="./lab.mjs"' in html
+          assert 'covecto.wasm' in worker
+          assert 'covecto_vectorize' in worker
+          assert "120_000" in (root/"lab.mjs").read_text()
+          assert "createImageBitmap" in (root/"lab.mjs").read_text()
+          assert "localSsim8" in (root/"quality-metrics.mjs").read_text()
+          print("PASS local-only lab, cancellation, WASM ABI and metrics wiring")
+          PY
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Existing Blazor WebAssembly production build
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - name: Make isolated browser-ready preview
+        run: |
+          mkdir -p hybrid-lab-preview
+          cp Vecto.Browser/wwwroot/lab/index.html hybrid-lab-preview/
+          cp Vecto.Browser/wwwroot/lab/lab.mjs hybrid-lab-preview/
+          cp Vecto.Browser/wwwroot/lab/quality-metrics.mjs hybrid-lab-preview/
+          cp Vecto.Browser/wwwroot/lab/covecto-worker.js hybrid-lab-preview/
+          cp Vecto.Browser/wwwroot/lab/covecto.wasm hybrid-lab-preview/
+          cp Vecto.Browser/wwwroot/lab/COVECTO-LICENSE.txt hybrid-lab-preview/
+          # README instructs running through HTTP; file:// cannot load workers.
+          printf 'Run locally using: python3 -m http.server 8000 --directory hybrid-lab-preview\nOpen http://localhost:8000\nThe image stays on your device. This is NOT automatically deployed to main.\n' > hybrid-lab-preview/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dikatrace-hybrid-rust-quality-lab
+          path: hybrid-lab-preview/
+          retention-days: 10
