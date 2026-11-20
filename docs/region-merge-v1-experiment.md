@@ -51,3 +51,24 @@ The second research step is additive to the opt-in V1 pass and remains **unmerge
 **Scope and limitations:** The tighter guard deliberately rejects many ambiguous fringe candidates; it may yield zero merges on the tiger. This stage protects topology and eliminates a risky class of changes; it does not promise fewer paths or improved raster fidelity. It does not detect geometric crossings introduced later by Bézier smoothing; those require separate geometric validation in a subsequent stage. The 0.1% label-change budget and all existing appearance-confidence checks remain in force.
 
 **Merge policy remains unchanged:** PR #18 is Draft, `RegionMergeV1=false` by default, and `main` must not change. A real tiger A/B must be run before enabling anything by default.
+
+## Priority 3 — Stacked Layer Reasoning V1 (same draft PR)
+
+**Opt-in experimental**, disabled by default. Only active for Stacked; Planar is unchanged.
+
+### What it actually does
+1. Reuse the existing StackedShapeBuilder parent/foreground containment and frontOf occlusion dependency DAG; never guess a new z-order.
+2. Run a second deterministic topological schedule. It favors already-ready regions with the same palette fill, but never crosses an unfinished occlusion dependency and limits scheduling to 16 original-priority slots.
+3. Merge only consecutive equal-palette shapes in this valid paint order into a compound top-level SVG path with several M...Z subpaths. Reuse the exact original Bézier curves and hole contours; do not invent missing/hidden paths.
+4. Compare with old Stacked output using the existing engine rasterizer, at up to **512px maximum side with 2x supersampling**. Any different RGBA pixel causes automatic fallback to the exact unchanged baseline Stacked document. This pixel probe is not proof of equality at unlimited resolutions; visual inspection is still required.
+5. If no path count reduction is possible, return the original Stacked output. The existing cyclic-graph fallback remains unchanged.
+
+### Controls and diagnostics
+The Advanced browser toggle is available only with Stacked selected. Metadata displays old/new paths, experimental candidates, reordering count, occlusion dependencies, probed pixels, mismatch pixels, and fallback status.
+
+Synthetic CI checks cover same-color disjoint shapes with foreground details, a real transparent cutout, four-way color junctions, Region Merge V1 compatibility, Planar ignored, default byte-identical output, deterministic output, and exact 1x/2x raster equivalence on the synthetic fixture.
+
+### Important scope limitations
+This stage performs **paint-layer ordering and shape-path packing**, not reconstruction of the original artwork's intended object identities or invisible back geometry. A compound path may be selected as one object in editors, reducing independent component editability even if it reduces paths. The full-resolution tiger JPEG has NOT yet been re-traced by this new branch; synthetic correctness does not establish that this improves source fidelity or matches Vector Magic.
+
+**Branch policy:** PR #18 stays Draft, main unchanged, every new feature OFF by default. Require tiger A/B and multiple real input cases before any merge decision.
