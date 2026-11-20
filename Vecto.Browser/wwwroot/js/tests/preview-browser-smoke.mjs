@@ -24,7 +24,7 @@ try {
   await page.goto(url, { waitUntil: "load" });
   try {
     await page.waitForFunction(
-      () => document.body.dataset.smoke !== "running", { timeout: 20000 });
+      () => document.body.dataset.smoke !== "running", null, { timeout: 20000 });
   } catch (_) {
     throw new Error("Smoke did not finish async image/SVG decode.");
   }
