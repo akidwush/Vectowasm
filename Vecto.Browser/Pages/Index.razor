@@ -1,4 +1,5 @@
 @page "/"
+@using Vecto.Browser.Shared
 @inject IJSRuntime Js
 @implements IAsyncDisposable
 
@@ -28,55 +29,9 @@
                 </div>
             </div>
 
-            <div class="canvas-stage">
-                @if (previewMode == "ab" && !string.IsNullOrEmpty(alternateSvgUrl) && !string.IsNullOrEmpty(svgUrl))
-                {
-                    <div class="compare-stage">
-                        <div class="comparison-pane">
-                            <div class="pane-heading">Original Engine (V3 OFF)</div>
-                            <div class="comparison-canvas"><img src="@alternateSvgUrl" alt="SVG dari engine Original" style="@($"width:{previewZoom}%;")" /></div>
-                        </div>
-                        <div class="comparison-pane">
-                            <div class="pane-heading">Local Edge V3 (ON)</div>
-                            <div class="comparison-canvas"><img src="@svgUrl" alt="SVG dari engine Local Edge V3" style="@($"width:{previewZoom}%;")" /></div>
-                        </div>
-                    </div>
-                }
-                else if (previewMode == "compare" && !string.IsNullOrEmpty(inputUrl) && !string.IsNullOrEmpty(svgUrl))
-                {
-                    <div class="compare-stage">
-                        <div class="comparison-pane">
-                            <div class="pane-heading">Gambar asli</div>
-                            <div class="comparison-canvas"><img src="@inputUrl" alt="Gambar bitmap asli" style="@($"width:{previewZoom}%;")" /></div>
-                        </div>
-                        <div class="comparison-pane">
-                            <div class="pane-heading">Hasil SVG</div>
-                            <div class="comparison-canvas"><img src="@svgUrl" alt="Hasil DikaTrace SVG" style="@($"width:{previewZoom}%;")" /></div>
-                        </div>
-                    </div>
-                }
-                else if (previewMode == "vector" && !string.IsNullOrEmpty(svgUrl))
-                {
-                    <div class="single-stage"><img src="@svgUrl" alt="Hasil vektorisasi SVG" style="@($"width:{previewZoom}%;")" /></div>
-                }
-                else if (!string.IsNullOrEmpty(inputUrl))
-                {
-                    <div class="single-stage"><img src="@inputUrl" alt="Gambar yang dipilih" style="@($"width:{previewZoom}%;")" /></div>
-                }
-                else
-                {
-                    <div class="empty-preview">Belum ada gambar. Pilih file di bawah.</div>
-                }
-            </div>
-
-            <div class="workspace-bottom">
-                <div class="zoom-controls" role="group" aria-label="Zoom pratinjau">
-                    <button type="button" @onclick="ZoomOut" disabled="@(previewZoom <= 50)" aria-label="Perkecil">−</button>
-                    <button type="button" @onclick="ResetZoom" aria-label="Atur ulang zoom">@previewZoom%</button>
-                    <button type="button" @onclick="ZoomIn" disabled="@(previewZoom >= 200)" aria-label="Perbesar">+</button>
-                </div>
-                <div class="workspace-hint">@(string.IsNullOrEmpty(inputUrl) ? "Tidak ada file" : sourceName)</div>
-            </div>
+            <PreviewCanvas @key="previewSession" Mode="@previewMode"
+                InputUrl="@inputUrl" SvgUrl="@svgUrl" AlternateSvgUrl="@alternateSvgUrl"
+                Filename="@(string.IsNullOrEmpty(inputUrl) ? "Tidak ada file" : sourceName)" />
         </section>
 
         <div class="controls-grid">
@@ -289,7 +244,7 @@
     private bool running;
     private bool loadingFile;
     private string previewMode = "original";
-    private int previewZoom = 100;
+    private int previewSession;
     private bool showDiagnostics;
     private int fileInputKey;
     private ImageStyle style = ImageStyle.Auto;
@@ -321,7 +276,7 @@
         inputHash = "";
         svgHash = "";
         previewMode = "original";
-        previewZoom = 100;
+        previewSession++;
         fileInputKey++;
         await ClearUrl(true);
         await ClearUrl(false);
@@ -333,9 +288,6 @@
     private void ShowVector() { if (svgUrl is not null) previewMode = "vector"; }
     private void ShowCompare() { if (svgUrl is not null) previewMode = "compare"; }
     private void ShowAb() { if (alternateSvgUrl is not null) previewMode = "ab"; }
-    private void ZoomIn() => previewZoom = Math.Min(200, previewZoom + 25);
-    private void ZoomOut() => previewZoom = Math.Max(50, previewZoom - 25);
-    private void ResetZoom() => previewZoom = 100;
 
     private async Task LoadFile(InputFileChangeEventArgs e)
     {
@@ -373,7 +325,7 @@
             inputUrl = newUrl;
             replaced = true;
             previewMode = "original";
-            previewZoom = 100;
+            previewSession++;
             autoEstimate = null;
             sourceBytes = null;
             preparedRaster = null;
@@ -575,7 +527,7 @@
                 }
             }
 
-            previewZoom = 100;
+            previewSession++;
             status = compare
                 ? "A/B selesai. Kedua SVG dibuat dengan setting identik; lihat tabel dan pratinjau A/B V3."
                 : useV3
