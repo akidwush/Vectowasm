@@ -8,13 +8,15 @@
         {
             <div class="preview-viewport" data-preview-viewport tabindex="0"
                  role="group" aria-label="Pratinjau interaktif. Geser gambar untuk pan; cubit untuk zoom. Geser pembatas untuk Before dan After.">
-                <div class="preview-layer preview-before">
-                    <img src="@BeforeUrl" alt="@BeforeDescription" draggable="false" />
+                <div class="preview-layer preview-before" data-preview-before>
+                    <canvas data-preview-raster aria-hidden="true"></canvas>
+                    <div class="preview-native-svg" data-preview-vector aria-hidden="true"></div>
                 </div>
                 @if (IsComparison)
                 {
-                    <div class="preview-layer preview-reveal" aria-hidden="true">
-                        <img src="@AfterUrl" alt="" draggable="false" />
+                    <div class="preview-layer preview-reveal" data-preview-after aria-hidden="true">
+                        <canvas data-preview-raster></canvas>
+                        <div class="preview-native-svg" data-preview-vector></div>
                     </div>
                     <div class="preview-divider" data-preview-divider aria-hidden="true">
                         <div class="preview-divider-line"></div>
@@ -25,10 +27,12 @@
                          aria-valuetext="50 persen gambar sebelum dan 50 persen sesudah">↔</div>
                     <span class="preview-tag preview-tag-before">@BeforeLabel</span>
                     <span class="preview-tag preview-tag-after">@AfterLabel</span>
+                    <span class="preview-loading" data-preview-loading role="status" hidden>Menyiapkan pratinjau resolusi tinggi…</span>
                 }
                 else
                 {
                     <span class="preview-tag preview-tag-single">@BeforeLabel</span>
+                    <span class="preview-loading" data-preview-loading role="status" hidden>Menyiapkan pratinjau…</span>
                 }
             </div>
         }
@@ -60,7 +64,7 @@
                    data-preview-split-range aria-label="Geser pembatas sebelum dan sesudah" />
         </div>
     }
-    <p class="preview-tip">Geser garis ↔ untuk Before/After · Cubit dua jari atau gunakan roda mouse untuk zoom · Geser gambar untuk melihat detail · Maksimum 1000×. Raster asli tetap terbatas pada resolusi pikselnya.</p>
+    <p class="preview-tip">Geser garis ↔ untuk Before/After · Cubit dua jari atau roda mouse untuk zoom · Geser gambar untuk pan · Maksimum 1000×. SVG dirender ulang sebagai vektor sesuai area terlihat; JPG/PNG akan menampilkan piksel aslinya pada zoom ekstrem.</p>
 </div>
 
 @code {
@@ -72,6 +76,7 @@
 
     private ElementReference root;
     private bool attached;
+    private bool disposed;
 
     private bool IsComparison => Mode == "ab"
         ? !string.IsNullOrEmpty(AlternateSvgUrl) && !string.IsNullOrEmpty(SvgUrl)
@@ -93,22 +98,23 @@
         _ => "GAMBAR ASLI"
     };
     private string AfterLabel => Mode == "ab" ? "AFTER · V3" : "AFTER · SVG";
-    private string BeforeDescription => Mode switch {
-        "ab" when IsComparison => "SVG Original Engine tanpa Local Edge V3",
-        "vector" => "Hasil SVG DikaTrace",
-        _ => "Gambar bitmap asli"
-    };
+    private bool BeforeIsVector => Mode == "ab" && IsComparison ||
+        Mode == "vector" && !string.IsNullOrEmpty(SvgUrl);
+    private bool AfterIsVector => IsComparison;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Idempotent mount: the native JS controller owns fast pointer/rAF
-        // updates and is not tied to slow Blazor WebAssembly re-renders.
-        await Js.InvokeVoidAsync("vectoPreview.mount", root);
+        if (disposed) return;
+        // Use native SVG viewBox and bounded raster canvas, not CSS scale(1000)
+        // over a huge compositor texture (which glitches on Android Chrome).
+        await Js.InvokeVoidAsync("vectoPreview.mount", root, BeforeUrl, AfterUrl,
+            BeforeIsVector, AfterIsVector);
         attached = true;
     }
 
     public async ValueTask DisposeAsync()
     {
+        disposed = true;
         if (!attached) return;
         try { await Js.InvokeVoidAsync("vectoPreview.dispose", root); }
         catch (JSDisconnectedException) { }
