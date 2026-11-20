@@ -14,7 +14,8 @@ public static class LocalEdgeRefiner
     public static int Refine(List<Vec2> points, bool closed,
         IReadOnlyList<int> structuralCorners,
         RasterImage source, Rgba32? left, Rgba32? right,
-        double maxShiftPx = 0.20)
+        double maxShiftPx = 0.20, double minimumGradient = 0.25,
+        double minimumCandidateShift = 0.012)
     {
         if (left is not { } l || right is not { } r)
             return 0; // Do not infer transparency transitions from RGB.
@@ -77,11 +78,11 @@ public static class LocalEdgeRefiner
             // Expected coverage goes from RIGHT (0) to LEFT (1).
             // A reliable two-colour transition should bracket 50%.
             double gradient = plus - minus;
-            if (gradient < .25 || minus > .48 || plus < .52 ||
+            if (gradient < minimumGradient || minus > .48 || plus < .52 ||
                 middle < .12 || middle > .88)
                 continue;
             double proposed = (.5 - middle) / gradient;
-            if (!double.IsFinite(proposed) || Math.Abs(proposed) < .012)
+            if (!double.IsFinite(proposed) || Math.Abs(proposed) < minimumCandidateShift)
                 continue;
             double delta = Math.Clamp(proposed, -maxShiftPx, maxShiftPx);
             Vec2 candidate = p + normal * delta;

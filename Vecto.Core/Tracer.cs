@@ -142,7 +142,12 @@ public static class Tracer
         int localV3MovedPoints = 0;
         if (options.LocalEdgeRefinementV3 &&
             (!double.IsFinite(options.LocalEdgeMaxShiftV3) ||
-             options.LocalEdgeMaxShiftV3 < 0.05 || options.LocalEdgeMaxShiftV3 > 0.35))
+             options.LocalEdgeMaxShiftV3 < 0.05 || options.LocalEdgeMaxShiftV3 > 0.35 ||
+             !double.IsFinite(options.LocalEdgeMinGradientV3) ||
+             options.LocalEdgeMinGradientV3 < 0.20 || options.LocalEdgeMinGradientV3 > 0.80 ||
+             !double.IsFinite(options.LocalEdgeMinCandidateShiftV3) ||
+             options.LocalEdgeMinCandidateShiftV3 < 0.0 ||
+             options.LocalEdgeMinCandidateShiftV3 > options.LocalEdgeMaxShiftV3))
             throw new ArgumentOutOfRangeException(nameof(options.LocalEdgeMaxShiftV3));
         Parallel.ForEach(graph.Chains, new ParallelOptions { CancellationToken = ct }, chain =>
         {
@@ -181,7 +186,9 @@ public static class Tracer
                 {
                     int moved = LocalEdgeRefiner.Refine(chain.Points, chain.Closed,
                         corners, edgeSamplingImage, ColorOf(chain.Left),
-                        ColorOf(chain.Right), options.LocalEdgeMaxShiftV3);
+                        ColorOf(chain.Right), options.LocalEdgeMaxShiftV3,
+                        options.LocalEdgeMinGradientV3,
+                        options.LocalEdgeMinCandidateShiftV3);
                     System.Threading.Interlocked.Add(ref localV3MovedPoints, moved);
                 }
                 chain.Curve = BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);

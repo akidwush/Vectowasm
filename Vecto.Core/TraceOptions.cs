@@ -44,6 +44,10 @@ public sealed class TraceOptions
     public bool LocalEdgeRefinementV3 { get; set; } = false;
     /// <summary>Maximum additional point shift in source pixels; does not unlock corners or junctions.</summary>
     public double LocalEdgeMaxShiftV3 { get; set; } = 0.20;
+    /// <summary>V3 confidence filter: directional coverage change across one pixel.</summary>
+    public double LocalEdgeMinGradientV3 { get; set; } = 0.25;
+    /// <summary>V3 confidence filter: do not move vertices for negligible coverage residual.</summary>
+    public double LocalEdgeMinCandidateShiftV3 { get; set; } = 0.012;
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>
     public double PolygonEpsilon { get; set; } = -1;
     public int Seed { get; set; } = 1;
