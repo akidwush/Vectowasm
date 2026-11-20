@@ -55,6 +55,17 @@
             <div><dt>Node setelah optimasi</dt><dd>@Diagnostics.OptimizedChainNodes.ToString("N0")</dd></div>
             <div><dt>Chain dikurangi oleh Global DP</dt><dd>@Diagnostics.GlobalReducedChains.ToString("N0")</dd></div>
             <div><dt>Threshold edge</dt><dd>@($"{Options.EdgeCoverageThreshold * 100:N1}%")</dd></div>
+            <div><dt>Anti-alias Aware Segmentation V1</dt><dd>@(Options.AntiAliasBandV1 ? "ON (eksperimen)" : "OFF")</dd></div>
+            @if (Options.AntiAliasBandV1)
+            {
+                <div><dt>Status AA band</dt><dd>@(Diagnostics.AntiAliasBandsSkipped ? "Dilewati: palet exact / bertekstur" : Diagnostics.AntiAliasBands.RolledBack ? "Rollback: topologi berubah" : "Selesai")</dd></div>
+                <div><dt>Region sebelum / setelah AA</dt><dd>@Diagnostics.AntiAliasBands.RegionsBefore.ToString("N0") / @Diagnostics.AntiAliasBands.RegionsAfter.ToString("N0")</dd></div>
+                <div><dt>Pita transisi diperiksa</dt><dd>@Diagnostics.AntiAliasBands.BandsConsidered.ToString("N0")</dd></div>
+                <div><dt>Pita transisi diperbaiki</dt><dd>@Diagnostics.AntiAliasBands.BandsReassigned.ToString("N0")</dd></div>
+                <div><dt>Pita terlindungi</dt><dd>@Diagnostics.AntiAliasBands.ProtectedBands.ToString("N0")</dd></div>
+                <div><dt>Piksel AA dialihkan label</dt><dd>@Diagnostics.AntiAliasBands.PixelsReassigned.ToString("N0")</dd></div>
+                <div><dt>Batas perubahan AA</dt><dd>2% dari piksel input</dd></div>
+            }
             <div><dt>Region Merge V1</dt><dd>@(Options.RegionMergeV1 ? "ON (eksperimen)" : "OFF")</dd></div>
             @if (Options.RegionMergeV1)
             {
