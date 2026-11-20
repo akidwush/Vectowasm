@@ -1,0 +1,54 @@
+name: Experimental eagle local edge V3 A/B
+on:
+  push:
+    branches: [experiment/local-edge-refinement-v3]
+  pull_request:
+    branches: [experiment/subpixel-edge-placement-sweep]
+permissions:
+  contents: read
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Existing DikaTrace regression tests and new opt-in V3 tests
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Restore original user-provided eagle JPEG from verified historical repo commit
+        run: |
+          set -eu
+          curl -fLsS --retry 3 \
+            "https://raw.githubusercontent.com/akidwush/Vectowasm/95784a493948b88895ba7987abaed4353e08ebb2/.benchmark-temporary/original-eagle.jpg.b64" \
+            -o original-eagle.jpg.b64
+          base64 -d original-eagle.jpg.b64 > eagle-original.jpg
+          echo "95fcc2876087edcd5af5fe2ba71f8177e77ada869aaef66bc8ccba8692c0e7e2  eagle-original.jpg" | sha256sum -c -
+          rm original-eagle.jpg.b64
+      - name: Sweep production baseline vs local V3 shifts on JPEG
+        run: |
+          dotnet run --project Vecto.Benchmarks/Vecto.Benchmarks.csproj -c Release -- \
+            --edge-sweep --image eagle-original.jpg --output edge-results
+      - name: Install PNG/SVG metrics dependencies
+        run: python3 -m pip install --disable-pip-version-check numpy pillow cairosvg scipy scikit-image
+      - name: Re-render variants and audit source-relative IoU SSIM and boundary distance
+        run: |
+          python3 tools/analyze_subpixel_sweep.py \
+            --source eagle-original.jpg --svgs edge-results --out edge-audit
+      - name: Compare local V3 against unchanged 50-percent baselines
+        run: |
+          python3 tools/compare_local_edge_v3.py \
+            --metrics edge-audit/edge_sweep_groundtruth.csv \
+            --traces edge-results/trace_stats.csv \
+            --out edge-audit/v3_comparison.json
+      - name: Compile Blazor WebAssembly
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dikatrace-eagle-local-edge-v3
+          path: |
+            edge-results/
+            edge-audit/
+          retention-days: 14
