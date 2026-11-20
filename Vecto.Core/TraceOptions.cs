@@ -40,6 +40,10 @@ public sealed class TraceOptions
     public double EdgeCoverageThreshold { get; set; } = 0.5;
     /// <summary>Optional source RGBA for sub-pixel sampling only. Null uses tracing raster (production behavior).</summary>
     public RasterImage? EdgeReferenceImage { get; set; }
+    /// <summary>Experiment only. Reproject smooth points to the local 50% coverage crossing after smoothing.</summary>
+    public bool LocalEdgeRefinementV3 { get; set; } = false;
+    /// <summary>Maximum additional point shift in source pixels; does not unlock corners or junctions.</summary>
+    public double LocalEdgeMaxShiftV3 { get; set; } = 0.20;
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>
     public double PolygonEpsilon { get; set; } = -1;
     public int Seed { get; set; } = 1;
