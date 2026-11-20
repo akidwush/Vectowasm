@@ -368,3 +368,106 @@ Check(modeOff.Document.Regions.Sum(x => x.Loops.Count) ==
       modeOff.Document.Regions.Sum(x => x.Loops.Count) ==
       modeGlobal.Document.Regions.Sum(x => x.Loops.Count),
     "Planar benchmark compares identical path topology");
+
+
+// Sub-pixel sampling benchmark hooks are opt-in. Production defaults remain
+// the same as before and are checked against the explicit 0.50 coverage.
+var subPixelArt = StackedFixture();
+var defaultSubpixel = Tracer.Trace(subPixelArt, new TraceOptions {
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, BezierMode = BezierOptimizationMode.GlobalDp
+});
+var explicitSubpixel = Tracer.Trace(subPixelArt, new TraceOptions {
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, BezierMode = BezierOptimizationMode.GlobalDp,
+    EdgeCoverageThreshold = .5, EdgeReferenceImage = subPixelArt
+});
+Check(SvgWriter.Write(defaultSubpixel.Document) == SvgWriter.Write(explicitSubpixel.Document),
+    "Default edge sampler is bit-identical to explicit coverage=0.50 on same raster");
+var shiftedCoverage = Tracer.Trace(subPixelArt, new TraceOptions {
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    OptimizeNodes = true, EdgeCoverageThreshold = .46
+});
+Check(shiftedCoverage.Document.Regions.Count == defaultSubpixel.Document.Regions.Count,
+    "Coverage change cannot create or delete connected regions");
+bool edgeDimensionRejected = false;
+try {
+    Tracer.Trace(subPixelArt, new TraceOptions {
+        EdgeReferenceImage = new RasterImage(24, 24)
+    });
+} catch (ArgumentException) { edgeDimensionRejected = true; }
+Check(edgeDimensionRejected, "Edge source must match target raster dimensions");
+
+
+// Local Edge Refinement V3 is opt-in and never moves protected sharp tips,
+// shared-chain endpoints, or low-contrast features.
+Check(!new TraceOptions().LocalEdgeRefinementV3,
+    "Local Edge V3 is disabled by default (production remains identical)");
+var localSource = new RasterImage(32, 20);
+for (int y = 0; y < localSource.Height; y++)
+for (int x = 0; x < localSource.Width; x++)
+    localSource.SetPixel(x, y, y < 8
+        ? new Rgba32(250, 250, 250, 255)
+        : new Rgba32(5, 5, 5, 255));
+List<Vec2> Horizontal() => Enumerable.Range(0, 12)
+    .Select(x => new Vec2(x + 5, 8.25)).ToList();
+var v3Points = Horizontal();
+var beforeV3 = v3Points.ToArray();
+int adjusted = LocalEdgeRefiner.Refine(v3Points, false, new[] { 3 },
+    localSource, new Rgba32(250, 250, 250, 255),
+    new Rgba32(5, 5, 5, 255), .20);
+Check(adjusted > 0 && v3Points[7].Y < beforeV3[7].Y &&
+      v3Points[7].Y >= beforeV3[7].Y - .20 - 1e-9,
+    "V3 reprojects high-confidence flat edge toward 50% coverage within shift cap");
+Check(v3Points[3] == beforeV3[3] &&
+      v3Points[2] == beforeV3[2] &&
+      v3Points[4] == beforeV3[4] &&
+      v3Points[0] == beforeV3[0] &&
+      v3Points[^1] == beforeV3[^1],
+    "V3 keeps sharp pins, adjacent shoulders, and chain endpoints unchanged");
+var v3Repeat = Horizontal();
+Check(LocalEdgeRefiner.Refine(v3Repeat, false, new[] { 3 },
+      localSource, new Rgba32(250, 250, 250, 255),
+      new Rgba32(5, 5, 5, 255), .20) == adjusted &&
+      v3Points.SequenceEqual(v3Repeat),
+    "V3 local adjustments are deterministic");
+var lowContrast = Horizontal();
+Check(LocalEdgeRefiner.Refine(lowContrast, false, Array.Empty<int>(),
+      localSource, new Rgba32(250, 250, 250, 255),
+      new Rgba32(246, 246, 246, 255), .20) == 0 &&
+      lowContrast.SequenceEqual(beforeV3),
+    "V3 skips low-contrast and ambiguous boundaries");
+var baselineV3Off = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    Style = ImageStyle.Crisp, ShapeMode = ShapeMode.Stacked,
+    LocalEdgeRefinementV3 = false
+});
+var baselineV3Default = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    Style = ImageStyle.Crisp, ShapeMode = ShapeMode.Stacked
+});
+Check(SvgWriter.Write(baselineV3Off.Document) ==
+      SvgWriter.Write(baselineV3Default.Document),
+    "V3 opt-in never changes production baseline SVG");
+
+
+// Shared-boundary orientation: reversing the contour and exchanging left/right
+// paint colors must yield the same refined geometry in reverse order.
+var reverseTest = Horizontal();
+int countForward = LocalEdgeRefiner.Refine(reverseTest, false,
+    Array.Empty<int>(), localSource,
+    new Rgba32(250, 250, 250, 255),
+    new Rgba32(5, 5, 5, 255), .20);
+var reverseInput = Horizontal();
+reverseInput.Reverse();
+int countBackward = LocalEdgeRefiner.Refine(reverseInput, false,
+    Array.Empty<int>(), localSource,
+    new Rgba32(5, 5, 5, 255),
+    new Rgba32(250, 250, 250, 255), .20);
+reverseInput.Reverse();
+Check(countForward == countBackward &&
+    reverseInput.Zip(reverseTest).All(p => p.First.DistSq(p.Second) < 1e-18),
+    "V3 is orientation-independent when a shared edge is reversed");
+Check(LocalEdgeRefiner.Refine(Horizontal(), false, Array.Empty<int>(),
+    localSource, null, new Rgba32(5, 5, 5, 255), .20) == 0,
+    "V3 preserves real transparent-side boundaries");

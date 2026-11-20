@@ -36,6 +36,7 @@ public sealed class TraceDiagnostics
     public int FittedChainNodes { get; init; }
     public int OptimizedChainNodes { get; init; }
     public int GlobalReducedChains { get; init; }
+    public int LocalEdgeV3MovedPoints { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -64,7 +65,15 @@ public static class Tracer
     {
         var total = Stopwatch.StartNew();
         var p = Resolve(options, image);
+        if (!double.IsFinite(options.EdgeCoverageThreshold) ||
+            options.EdgeCoverageThreshold < 0.35 || options.EdgeCoverageThreshold > 0.65)
+            throw new ArgumentOutOfRangeException(nameof(options.EdgeCoverageThreshold),
+                "Experimental edge coverage must be between 0.35 and 0.65.");
+        if (options.EdgeReferenceImage is { } reference &&
+            (reference.Width != image.Width || reference.Height != image.Height))
+            throw new ArgumentException("Edge reference dimensions must equal tracing raster dimensions.");
         var img = p.MedianPrefilter ? Preprocess.Median3x3(image, ct) : image;
+        var edgeSamplingImage = options.EdgeReferenceImage ?? img;
         int w = img.Width, h = img.Height;
 
         progress?.Invoke("palette", 0.0);
@@ -130,6 +139,16 @@ public static class Tracer
         double smoothClamp = rampLines ? Math.Max(p.SmoothClamp, RampSmoothClamp) : p.SmoothClamp;
         int fittedChainNodes = 0, optimizedChainNodes = 0;
         int globalReducedChains = 0;
+        int localV3MovedPoints = 0;
+        if (options.LocalEdgeRefinementV3 &&
+            (!double.IsFinite(options.LocalEdgeMaxShiftV3) ||
+             options.LocalEdgeMaxShiftV3 < 0.05 || options.LocalEdgeMaxShiftV3 > 0.35 ||
+             !double.IsFinite(options.LocalEdgeMinGradientV3) ||
+             options.LocalEdgeMinGradientV3 < 0.20 || options.LocalEdgeMinGradientV3 > 0.80 ||
+             !double.IsFinite(options.LocalEdgeMinCandidateShiftV3) ||
+             options.LocalEdgeMinCandidateShiftV3 < 0.0 ||
+             options.LocalEdgeMinCandidateShiftV3 > options.LocalEdgeMaxShiftV3))
+            throw new ArgumentOutOfRangeException(nameof(options.LocalEdgeMaxShiftV3));
         Parallel.ForEach(graph.Chains, new ParallelOptions { CancellationToken = ct }, chain =>
         {
             if (options.CurveFitting)
@@ -162,6 +181,15 @@ public static class Tracer
                     // move each to the intersection of its refined flank lines instead
                     ChainGeometry.RelocateCorners(chain.Points, chain.Closed, corners,
                         p.CornerRelocateMaxShift, p.AngleSnapDeg);
+                }
+                if (options.LocalEdgeRefinementV3)
+                {
+                    int moved = LocalEdgeRefiner.Refine(chain.Points, chain.Closed,
+                        corners, edgeSamplingImage, ColorOf(chain.Left),
+                        ColorOf(chain.Right), options.LocalEdgeMaxShiftV3,
+                        options.LocalEdgeMinGradientV3,
+                        options.LocalEdgeMinCandidateShiftV3);
+                    System.Threading.Interlocked.Add(ref localV3MovedPoints, moved);
                 }
                 chain.Curve = BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);
                 System.Threading.Interlocked.Add(ref fittedChainNodes, chain.Curve.Count);
@@ -197,8 +225,9 @@ public static class Tracer
                 void Process(List<int> pins)
                 {
                     ChainGeometry.SmoothInPlace(chain.Points, chain.Closed, pins, p.SmoothIterations, p.SmoothLambda, smoothClamp);
-                    ChainGeometry.SubpixelRefine(chain.Points, chain.Closed, pins, img,
-                        ColorOf(chain.Left), ColorOf(chain.Right), p.SubpixelMaxShift);
+                    ChainGeometry.SubpixelRefine(chain.Points, chain.Closed, pins, edgeSamplingImage,
+                        ColorOf(chain.Left), ColorOf(chain.Right), p.SubpixelMaxShift,
+                        options.EdgeCoverageThreshold);
                     // light second pass: per-point refinement estimates jitter; smoothing them
                     // (clamped to the refined positions) costs <0.25px but many fewer nodes
                     ChainGeometry.SmoothInPlace(chain.Points, chain.Closed, pins, 3, 0.5, 0.25);
@@ -248,6 +277,7 @@ public static class Tracer
             FittedChainNodes = fittedChainNodes,
             OptimizedChainNodes = optimizedChainNodes,
             GlobalReducedChains = globalReducedChains,
+            LocalEdgeV3MovedPoints = localV3MovedPoints,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
