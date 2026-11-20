@@ -48,6 +48,9 @@ public sealed class TraceOptions
     public double LocalEdgeMinGradientV3 { get; set; } = 0.25;
     /// <summary>V3 confidence filter: do not move vertices for negligible coverage residual.</summary>
     public double LocalEdgeMinCandidateShiftV3 { get; set; } = 0.012;
+    /// <summary>Experimental source-supported small chromatic accent recovery.
+    /// Can add up to two palette seeds for Blended art. OFF by default.</summary>
+    public bool AccentInkV1 { get; set; } = false;
     /// <summary>Experimental whole-band anti-alias segmentation; Blended & non-textured only.
     /// OFF by default to preserve every existing production SVG.</summary>
     public bool AntiAliasBandV1 { get; set; } = false;
