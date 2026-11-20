@@ -45,6 +45,7 @@ public sealed class TraceDiagnostics
     public int RegionMergeV1VerifiedCracks { get; init; }
     public int RegionMergeV1VerifiedContours { get; init; }
     public StackedLayerStats StackedLayers { get; init; }
+    public AccentInkStats AccentInk { get; init; }
     public AntiAliasBandStats AntiAliasBands { get; init; }
     public bool AntiAliasBandsSkipped { get; init; }
     public long PaletteMs { get; init; }
@@ -89,6 +90,18 @@ public static class Tracer
         progress?.Invoke("palette", 0.0);
         var sw = Stopwatch.StartNew();
         var centers = PaletteBuilder.Build(img, p, ct, out var tints);
+        AccentInkStats accentInk = default;
+        // Add only source-evidenced small chromatic pigments that the global
+        // k-means palette missed. Never affect exact palettes or photo styles;
+        // this opt-in is independent of existing AA/region/stacked experiments.
+        if (options.AccentInkV1 && !p.ExactPalette && p.Style == ImageStyle.Blended)
+        {
+            var expanded = AccentInkPaletteV1.Expand(img, centers,
+                options.PaletteMode == PaletteMode.FixedCount
+                    ? options.ColorCount : options.MaxColors, ct);
+            centers = expanded.Colors;
+            accentInk = expanded.Stats;
+        }
         long paletteMs = sw.ElapsedMilliseconds;
 
         progress?.Invoke("segmentation", 0.25);
@@ -327,6 +340,7 @@ public static class Tracer
             RegionMergeV1VerifiedCracks = topologyAudit.Cracks,
             RegionMergeV1VerifiedContours = topologyAudit.ClosedContours,
             StackedLayers = stackedLayerAudit,
+            AccentInk = accentInk,
             AntiAliasBands = antiAliasBands,
             AntiAliasBandsSkipped = aaSkipped,
             PaletteMs = paletteMs,
