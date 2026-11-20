@@ -6,6 +6,7 @@ on:
       - 'Vecto.Browser/Pages/Index.razor'
       - 'Vecto.Browser/wwwroot/js/vecto-preview.js'
       - 'Vecto.Browser/wwwroot/js/tests/preview.test.mjs'
+      - 'Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.html'
       - 'Vecto.Browser/wwwroot/css/app.css'
       - 'Vecto.Browser/wwwroot/index.html'
       - '.github/workflows/before-after-preview-ci.yml'
@@ -22,6 +23,31 @@ jobs:
         run: |
           node --check Vecto.Browser/wwwroot/js/vecto-preview.js
           node --test Vecto.Browser/wwwroot/js/tests/preview.test.mjs
+      - name: Real Chrome smoke test for 1000x native SVG and blank-free pan
+        shell: bash
+        run: |
+          set -eu
+          if command -v google-chrome >/dev/null; then
+            chrome=google-chrome
+          elif command -v chromium >/dev/null; then
+            chrome=chromium
+          else
+            echo 'No headless Chromium available on runner' >&2
+            exit 1
+          fi
+          output="$(mktemp)"
+          uri="file://$PWD/Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.html"
+          timeout 35s "$chrome" --headless=new --no-sandbox --disable-gpu \
+            --disable-dev-shm-usage --allow-file-access-from-files \
+            --virtual-time-budget=7000 --dump-dom "$uri" > "$output" 2>/tmp/preview-browser-stderr || {
+            tail -35 /tmp/preview-browser-stderr
+            exit 1
+          }
+          if ! grep -q 'data-smoke="pass"' "$output"; then
+            grep -A 5 -B 4 'id="result"' "$output" || true
+            exit 1
+          fi
+          echo 'PASS Chrome visual rendering: native SVG path, raster pixels, extreme pan, max 1000x, split clipping'
       - name: Ensure before-after, A/B V3, fallback, and download wiring
         run: |
           python3 - <<'PY'
