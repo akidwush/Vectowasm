@@ -2,7 +2,8 @@ namespace Vecto.Core;
 
 /// <summary>Measured changes from opt-in, source-aware region cleanup.</summary>
 public readonly record struct RegionMergeStats(
-    int RegionsBefore, int RegionsAfter, int MergedRegions, int RelabeledPixels);
+    int RegionsBefore, int RegionsAfter, int MergedRegions, int RelabeledPixels,
+    int TopologyRejectedRegions = 0);
 
 /// <summary>
 /// Reassigns ONLY tiny connected components when their source pixels support
@@ -46,6 +47,12 @@ public static class RegionMergeRefiner
         if (!eligible.Any(x => x))
             return new RegionMergeStats(rc, rc, 0, 0);
 
+        // A tiny component can touch more than two colors diagonally even when
+        // its direct boundary is dominated by one color. Such pixel-corner
+        // junctions must not move: they can alter planar loop topology.
+        var atJunction = RegionTopologyGuardV1.MarkJunctionComponents(
+            seg.RegionId, w, h, eligible, cancellationToken);
+        var topologyRejected = new bool[rc];
         var totalEdges = new int[rc];
         var meanL = new double[rc];
         var meanA = new double[rc];
@@ -158,6 +165,16 @@ public static class RegionMergeRefiner
                 && targetMeanSq > ownMeanSq - SolidCoreError)
                 continue; // preserve long 1-2 px strokes
 
+            // Only erase an *internal* isolated mislabeled island enclosed by
+            // one single stable component. If the island borders a third
+            // color, transparency, the image frame or a 2x2 junction, merging
+            // it can change another region's outline/holes. Keep it intact.
+            if (atJunction[r] || border != totalEdges[r])
+            {
+                topologyRejected[r] = true;
+                continue;
+            }
+
             if (border > strongestBorder[r]
                 || (border == strongestBorder[r]
                     && (targetMeanSq < bestTargetError[r] - 1e-10
@@ -189,7 +206,8 @@ public static class RegionMergeRefiner
             toLabel[r] = seg.RegionPalette[selected[r]];
             relabeled += area;
         }
-        if (relabeled == 0) return new RegionMergeStats(rc, rc, 0, 0);
+        int rejected = topologyRejected.Count(x => x);
+        if (relabeled == 0) return new RegionMergeStats(rc, rc, 0, 0, rejected);
 
         int changed = 0;
         for (int i = 0; i < labels.Length; i++)
@@ -202,6 +220,20 @@ public static class RegionMergeRefiner
             }
         }
         int after = Segmenter.Components(labels, w, h).RegionCount;
-        return new RegionMergeStats(rc, after, Math.Max(0, rc - after), changed);
+        // One accepted source component must disappear into exactly one
+        // 4-connected target component. Any stronger count change indicates
+        // a bridge or unintended graph-topology edit. Restore ALL changes.
+        int accepted = toLabel.Count(x => x >= 0);
+        if (rc - after != accepted)
+        {
+            for (int i = 0; i < labels.Length; i++)
+            {
+                int r = seg.RegionId[i];
+                if (r >= 0 && toLabel[r] >= 0)
+                    labels[i] = seg.RegionPalette[r];
+            }
+            return new RegionMergeStats(rc, rc, 0, 0, rejected + accepted);
+        }
+        return new RegionMergeStats(rc, after, accepted, changed, rejected);
     }
 }
