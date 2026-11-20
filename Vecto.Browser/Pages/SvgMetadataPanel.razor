@@ -75,7 +75,7 @@
         <div class="svg-colors">
             @foreach (var color in Stats.Colors)
             {
-                <div class="svg-color" @key="color.Hex">
+                <div class="svg-color" @key="color">
                     <span class="color-swatch" style="background-color:@color.Hex" aria-hidden="true"></span>
                     <div><strong>@color.Hex</strong><span>@color.RegionPaths.ToString("N0") path · @color.PalettePixelCount.ToString("N0") piksel palet</span></div>
                 </div>
