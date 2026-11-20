@@ -1,0 +1,99 @@
+@using Vecto.Core
+
+<details class="svg-metadata" open="@Expanded">
+    <summary>
+        <span>Metadata SVG — @EngineLabel</span>
+        <span class="meta-summary">@Stats.PathCount.ToString("N0") path · @Stats.TotalSegments.ToString("N0") segmen · @Stats.FileBytes.ToString("N0") B</span>
+    </summary>
+    <div class="metadata-body">
+        <h3>File &amp; koordinat</h3>
+        <dl class="metadata-grid">
+            <div><dt>Nama unduhan</dt><dd class="meta-filename">@Filename</dd></div>
+            <div><dt>Ukuran berkas</dt><dd>@($"{Stats.FileBytes:N0} byte / {Stats.FileBytes / 1024.0:N2} KiB")</dd></div>
+            <div><dt>Sumber bitmap</dt><dd>@($"{SourceFileBytes:N0} byte")</dd></div>
+            <div><dt>Rasio ukuran SVG / sumber</dt><dd>@(SourceFileBytes > 0 ? $"{100.0 * Stats.FileBytes / SourceFileBytes:N1}%" : "—")</dd></div>
+            <div><dt>Dimensi root SVG</dt><dd>@Stats.PointsUnitSize</dd></div>
+            <div><dt>viewBox</dt><dd><code>@Stats.ViewBox</code></dd></div>
+            <div><dt>Format &amp; enkoding</dt><dd>SVG 1.1 · XML 1.0 · UTF-8</dd></div>
+            <div><dt>Precision koordinat</dt><dd>2 desimal (sesuai output)</dd></div>
+            <div><dt>Struktur</dt><dd>Path langsung; tanpa grup &lt;g&gt;</dd></div>
+            <div><dt>Fill</dt><dd>RGB solid; opacity 1.00 · tanpa stroke</dd></div>
+            <div><dt>Hash SVG</dt><dd><code>@SvgHash</code> (FNV64)</dd></div>
+            <div><dt>Engine</dt><dd>@EngineLabel</dd></div>
+        </dl>
+
+        <h3>Geometri dari SVG</h3>
+        <dl class="metadata-grid">
+            <div><dt>Elemen &lt;path&gt;</dt><dd>@Stats.PathCount.ToString("N0")</dd></div>
+            <div><dt>Subpath M / penutup Z</dt><dd>@Stats.SubpathCount.ToString("N0")</dd></div>
+            <div><dt>Total segmen (L + C)</dt><dd>@Stats.TotalSegments.ToString("N0")</dd></div>
+            <div><dt>Garis L</dt><dd>@Stats.LineCommands.ToString("N0")</dd></div>
+            <div><dt>Kurva Bézier kubik C</dt><dd>@Stats.CubicCommands.ToString("N0")</dd></div>
+            <div><dt>Garis mikro L (&lt;2 px)</dt><dd>@Stats.MicroLineCommands.ToString("N0")</dd></div>
+            <div><dt>Endpoint segmen diekspor</dt><dd>@Stats.EmittedAnchors.ToString("N0")</dd></div>
+            <div><dt>Control point Bézier (2 × C)</dt><dd>@Stats.CubicControlPoints.ToString("N0")</dd></div>
+            <div><dt>Segmen per path (min / rata² / maks)</dt><dd>@($"{Stats.MinSegmentsPerPath:N0} / {Stats.AverageSegmentsPerPath:N2} / {Stats.MaxSegmentsPerPath:N0}")</dd></div>
+            <div><dt>Perkiraan panjang garis tepi</dt><dd>@($"{Stats.ApproximateOutlineLength:N1} unit SVG")</dd></div>
+            <div><dt>Region area (min / maks)</dt><dd>@($"{Stats.SmallestRegionPixels:N0} / {Stats.LargestRegionPixels:N0} px label")</dd></div>
+            <div><dt>Region / chain internal</dt><dd>@($"{Diagnostics.RegionCount:N0} / {Diagnostics.ChainCount:N0}")</dd></div>
+        </dl>
+        <p class="meta-note">Endpoint segmen bukan jumlah titik unik; shared-edge bisa dipakai ulang. Panjang garis tepi dihitung pendekatan 16 sampel/kurva. Area region dihitung dari segmentasi, bukan luasan SVG setelah render.</p>
+
+        <h3>Tracing &amp; optimasi</h3>
+        <dl class="metadata-grid">
+            <div><dt>Mode bentuk</dt><dd>@Options.ShapeMode</dd></div>
+            <div><dt>Style diminta / terpilih</dt><dd>@($"{Options.Style} / {Diagnostics.Params.Style}")</dd></div>
+            <div><dt>Detail</dt><dd>@Options.Detail</dd></div>
+            <div><dt>Palet</dt><dd>Otomatis (batas @Options.MaxColors.ToString("N0"))</dd></div>
+            <div><dt>Jumlah warna digunakan</dt><dd>@Stats.Colors.Count.ToString("N0")</dd></div>
+            <div><dt>Seed</dt><dd>@Options.Seed</dd></div>
+            <div><dt>Curve fitting</dt><dd>@(Options.CurveFitting ? "Aktif" : "Nonaktif")</dd></div>
+            <div><dt>Pengurangan node</dt><dd>@(Options.CurveFitting && Options.OptimizeNodes ? Options.BezierMode.ToString() : "Nonaktif")</dd></div>
+            <div><dt>Polygon epsilon</dt><dd>@(Options.CurveFitting ? "Tidak digunakan" : Options.PolygonEpsilon.ToString("0.###"))</dd></div>
+            <div><dt>Node awal</dt><dd>@Diagnostics.NodeCount.ToString("N0")</dd></div>
+            <div><dt>Node hasil fitting</dt><dd>@Diagnostics.FittedChainNodes.ToString("N0")</dd></div>
+            <div><dt>Node setelah optimasi</dt><dd>@Diagnostics.OptimizedChainNodes.ToString("N0")</dd></div>
+            <div><dt>Chain dikurangi oleh Global DP</dt><dd>@Diagnostics.GlobalReducedChains.ToString("N0")</dd></div>
+            <div><dt>Threshold edge</dt><dd>@($"{Options.EdgeCoverageThreshold * 100:N1}%")</dd></div>
+            <div><dt>Local Edge V3</dt><dd>@(Options.LocalEdgeRefinementV3 ? "ON (eksperimen)" : "OFF")</dd></div>
+            <div><dt>Titik digeser oleh V3</dt><dd>@Diagnostics.LocalEdgeV3MovedPoints.ToString("N0")</dd></div>
+            <div><dt>Batas perpindahan V3</dt><dd>@(Options.LocalEdgeRefinementV3 ? $"{Options.LocalEdgeMaxShiftV3:N2} px" : "Tidak aktif")</dd></div>
+            <div><dt>Pembersihan sumber</dt><dd>@(CleanupApplied ? $"{CleanedPixels:N0} piksel" : "Tidak diterapkan")</dd></div>
+        </dl>
+
+        <h3>Durasi pipeline</h3>
+        <dl class="metadata-grid">
+            <div><dt>Total tracing</dt><dd>@Diagnostics.TotalMs.ToString("N0") ms</dd></div>
+            <div><dt>Palet</dt><dd>@Diagnostics.PaletteMs.ToString("N0") ms</dd></div>
+            <div><dt>Segmentasi</dt><dd>@Diagnostics.SegmentMs.ToString("N0") ms</dd></div>
+            <div><dt>Boundary graph</dt><dd>@Diagnostics.BoundaryMs.ToString("N0") ms</dd></div>
+            <div><dt>Fitting &amp; optimasi</dt><dd>@Diagnostics.FitMs.ToString("N0") ms</dd></div>
+        </dl>
+        <p class="meta-note">Waktu ditampilkan untuk proses tracing di browser, bukan total decoding, preview, atau proses unduhan. Penjumlahan tahap bisa berbeda dari total.</p>
+
+        <h3>Palet warna SVG (@Stats.Colors.Count)</h3>
+        <div class="svg-colors">
+            @foreach (var color in Stats.Colors)
+            {
+                <div class="svg-color" @key="color.Hex">
+                    <span class="color-swatch" style="background-color:@color.Hex" aria-hidden="true"></span>
+                    <div><strong>@color.Hex</strong><span>@color.RegionPaths.ToString("N0") path · @color.PalettePixelCount.ToString("N0") piksel palet</span></div>
+                </div>
+            }
+        </div>
+        <p class="meta-note">Jumlah piksel palet berasal dari hasil segmentasi dan bisa berbeda dengan cakupan warna setelah SVG dirender, khususnya mode Stacked.</p>
+    </div>
+</details>
+
+@code {
+    [Parameter, EditorRequired] public SvgOutputStatistics Stats { get; set; } = default!;
+    [Parameter, EditorRequired] public TraceDiagnostics Diagnostics { get; set; } = default!;
+    [Parameter, EditorRequired] public TraceOptions Options { get; set; } = default!;
+    [Parameter, EditorRequired] public string Filename { get; set; } = "";
+    [Parameter, EditorRequired] public string EngineLabel { get; set; } = "";
+    [Parameter] public string SvgHash { get; set; } = "";
+    [Parameter] public long SourceFileBytes { get; set; }
+    [Parameter] public bool CleanupApplied { get; set; }
+    [Parameter] public int CleanedPixels { get; set; }
+    [Parameter] public bool Expanded { get; set; } = true;
+}
