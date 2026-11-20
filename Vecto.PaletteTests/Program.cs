@@ -638,3 +638,95 @@ Check(Rasterizer.Render(defaultsForMerge.Document, 1).Pixels.SequenceEqual(
         Rasterizer.Render(mergeFixture.Document, 1).Pixels) &&
     mergeFixture.Diagnostics.RegionMergeV1ChangedPixels == 0,
     "Deliberate sharp nested logo stays raster-identical with merge opt-in");
+
+
+// Priority #2: topology-safe region graph. Never erase a 2x2 fringe component
+// when it touches a third distinct color at a T-junction.
+var junctionImage = new RasterImage(64, 64);
+var junctionLabels = new int[64 * 64];
+for (int y = 0; y < 64; y++)
+for (int x = 0; x < 64; x++)
+    junctionImage.SetPixel(x, y, new Rgba32(108, 108, 108, 255));
+for (int y = 30; y < 32; y++)
+for (int x = 30; x < 32; x++)
+    junctionLabels[y * 64 + x] = 1;
+junctionImage.SetPixel(32, 30, new Rgba32(250, 214, 15, 255));
+junctionLabels[30 * 64 + 32] = 2;
+var junctionPalette = new List<PaletteEntry>
+{
+    new() { Color = new Rgba32(108, 108, 108, 255), PixelCount = 4091 },
+    new() { Color = new Rgba32(118, 118, 118, 255), PixelCount = 4 },
+    new() { Color = new Rgba32(250, 214, 15, 255), PixelCount = 1 }
+};
+var junctionBefore = (int[])junctionLabels.Clone();
+var junctionAudit = RegionMergeRefiner.Refine(junctionImage, junctionLabels, junctionPalette);
+Check(junctionAudit.RelabeledPixels == 0 &&
+      junctionAudit.TopologyRejectedRegions >= 1 &&
+      junctionLabels.SequenceEqual(junctionBefore),
+    "Topology guard protects tiny component touching a third-color T-junction");
+
+// A third-color island may be diagonal to a fringe component, without any
+// direct 4-connected border. Changing the fringe can still alter the graph
+// degree at the shared pixel-corner, so protect checkerboard junctions.
+var diagonalImage = new RasterImage(64, 64);
+var diagonalLabels = new int[64 * 64];
+for (int y = 0; y < 64; y++)
+for (int x = 0; x < 64; x++)
+    diagonalImage.SetPixel(x, y, new Rgba32(108, 108, 108, 255));
+for (int y = 30; y < 32; y++)
+for (int x = 30; x < 32; x++)
+    diagonalLabels[y * 64 + x] = 1;
+diagonalImage.SetPixel(29, 29, new Rgba32(250, 214, 15, 255));
+diagonalLabels[29 * 64 + 29] = 2;
+var diagonalBefore = (int[])diagonalLabels.Clone();
+var diagonalAudit = RegionMergeRefiner.Refine(diagonalImage, diagonalLabels, junctionPalette);
+Check(diagonalAudit.RelabeledPixels == 0 &&
+      diagonalAudit.TopologyRejectedRegions >= 1 &&
+      diagonalLabels.SequenceEqual(diagonalBefore),
+    "Diagonal third-color pixel-corner junction is not bridged by a merge");
+
+// Explicitly exercise the boundary validator on a multi-color 4-way junction.
+// All four quadrants are independent graph regions; the shared cracks around
+// the central crossing must be assigned to two sides exactly once.
+var fourWayImage = new RasterImage(64, 64);
+for (int y = 0; y < 64; y++)
+for (int x = 0; x < 64; x++)
+{
+    var color = (x < 32, y < 32) switch
+    {
+        (true, true) => new Rgba32(255, 255, 255, 255),
+        (false, true) => new Rgba32(8, 8, 8, 255),
+        (true, false) => new Rgba32(235, 107, 45, 255),
+        _ => new Rgba32(30, 143, 210, 255)
+    };
+    fourWayImage.SetPixel(x, y, color);
+}
+var fourWayOptions = new TraceOptions
+{
+    Style = ImageStyle.Crisp,
+    ShapeMode = ShapeMode.Planar,
+    Detail = DetailLevel.High,
+    CurveFitting = false,
+    PolygonEpsilon = 0,
+    RegionMergeV1 = true
+};
+var fourWayTrace = Tracer.Trace(fourWayImage, fourWayOptions);
+Check(fourWayTrace.Diagnostics.RegionMergeV1VerifiedCracks > 0 &&
+      fourWayTrace.Diagnostics.RegionMergeV1VerifiedContours >= 4 &&
+      fourWayTrace.Diagnostics.RegionMergeV1ChangedPixels == 0,
+    "Boundary validator verifies every shared crack and four-way closed contour");
+Check(fourWayTrace.Document.Regions.Count == 4,
+    "Four-way junction keeps four independently editable color regions");
+var fourWayStacked = Tracer.Trace(fourWayImage, new TraceOptions
+{
+    Style = ImageStyle.Crisp,
+    ShapeMode = ShapeMode.Stacked,
+    Detail = DetailLevel.High,
+    CurveFitting = false,
+    PolygonEpsilon = 0,
+    RegionMergeV1 = true
+});
+Check(fourWayStacked.Diagnostics.RegionMergeV1VerifiedCracks ==
+      fourWayTrace.Diagnostics.RegionMergeV1VerifiedCracks &&
+      fourWayStacked.Document.Regions.Count == 4,
+    "Planar and Stacked share the same verified topology at four-way junction");
