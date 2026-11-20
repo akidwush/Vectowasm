@@ -133,6 +133,8 @@
                     <details class="advanced-options">
                         <summary>Pengaturan lanjutan</summary>
                         <div class="advanced-inside">
+                            <label class="check-option"><input type="checkbox" @bind="regionMergeV1" disabled="@(running || loadingFile)" /> Region Merge V1 (eksperimen, opt-in)</label>
+                            <p class="help-text">Menggabungkan hanya fragmentasi kecil bila warna sumber dan batas mendukung. Ini terpisah dari Local Edge V3, tidak mengaktifkan otomatis.</p>
                             <label>Seed <input type="number" @bind="seed" /></label>
                             <label class="check-option"><input type="checkbox" @bind="curveFitting" /> Kurva Bézier</label>
                             @if (curveFitting)
@@ -290,6 +292,7 @@
     private DetailLevel detail = DetailLevel.Medium;
     private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
+    private bool regionMergeV1;
     private bool curveFitting = true;
     private bool optimizeNodes = true;
     private double polygonEpsilon = -1;
@@ -428,7 +431,8 @@
         OptimizeNodes = optimizeNodes,
         PolygonEpsilon = polygonEpsilon,
         EdgeCoverageThreshold = 0.5,
-        LocalEdgeRefinementV3 = enableV3
+        LocalEdgeRefinementV3 = enableV3,
+        RegionMergeV1 = regionMergeV1
     };
 
     private static int CountSegments(TraceResult trace) =>
@@ -511,10 +515,13 @@
                 : "";
             if (traced.Diagnostics.GlobalReducedChains > 0)
                 fitStats += $" · DP global unggul di {traced.Diagnostics.GlobalReducedChains:N0} rantai";
+            string mergeInfo = traceOptions.RegionMergeV1
+                ? $" · Region Merge V1: -{traced.Diagnostics.RegionMergeV1MergedRegions:N0} region / {traced.Diagnostics.RegionMergeV1ChangedPixels:N0} piksel"
+                : "";
             string v3Info = useV3
                 ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
                 : " · Engine Original";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}";
 
             if (compare && originalTrace is not null && originalSvg is not null && originalOptions is not null)
             {
