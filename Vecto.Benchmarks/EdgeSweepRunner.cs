@@ -61,7 +61,11 @@ internal static class EdgeSweepRunner
 
         // Conservative variants: reject weak gradients and tiny corrections.
         // These test whether V3 can improve IoU without adding micro-L.
-        foreach (var guard in new[] { (Name: 450, G: .45, M: .08),
+        foreach (var guard in new[] { (Name: 280, G: .28, M: .012),
+                                      (Name: 300, G: .30, M: .012),
+                                      (Name: 330, G: .33, M: .012),
+                                      (Name: 360, G: .36, M: .012),
+                                      (Name: 450, G: .45, M: .08),
                                       (Name: 600, G: .60, M: .14) })
         {
             cases.Add(("prepared", .50, null, true, .20, guard.G, guard.M));
