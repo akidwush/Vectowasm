@@ -102,7 +102,7 @@ public static class AutoPaletteInkGuard
     {
         if (candidate.Width != baseline.Width || candidate.Height != baseline.Height ||
             candidate.LabelMap.Length != baseline.LabelMap.Length ||
-            candidate.Document.Palette.Count <= baseline.Document.Palette.Count)
+            candidate.Document.Palette.Count == 0)
             return false;
         Lab target = Oklab.FromRgb(ink.SourceColor.R, ink.SourceColor.G, ink.SourceColor.B);
         double oldDistance = Nearest(target, baseline.Document.Palette);
