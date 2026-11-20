@@ -1009,3 +1009,79 @@ var aaDisabledExplicit = Tracer.Trace(layeredFixture, new TraceOptions
 Check(SvgWriter.Write(aaDisabled.Document) ==
       SvgWriter.Write(aaDisabledExplicit.Document),
     "Explicit AA OFF yields byte-identical baseline for complex layered fixture");
+
+
+// Hybrid research follow-up: source-backed chromatic accent recall.
+// Global palettes can miss a small pure yellow eye in orange mascot art.
+Check(!new TraceOptions().AccentInkV1,
+    "Chromatic accent rescue is opt-in and disabled in production");
+var accentFixture = new RasterImage(128, 128);
+var tigerOrange = new Rgba32(246, 142, 44, 255);
+var tigerBrown = new Rgba32(171, 78, 32, 255);
+var tigerYellow = new Rgba32(225, 188, 12, 255);
+for (int y = 0; y < 128; y++)
+for (int x = 0; x < 128; x++)
+{
+    var c = (x >= 37 && x < 55 && y >= 39 && y < 57)
+        ? tigerYellow : (x < 20 ? tigerBrown : tigerOrange);
+    accentFixture.SetPixel(x, y, c);
+}
+var orangeLab = Oklab.FromRgb(tigerOrange.R, tigerOrange.G, tigerOrange.B);
+var brownLab = Oklab.FromRgb(tigerBrown.R, tigerBrown.G, tigerBrown.B);
+var yellowLab = Oklab.FromRgb(tigerYellow.R, tigerYellow.G, tigerYellow.B);
+var missingEyePalette = new Lab[] { orangeLab, brownLab };
+var rescuedEye = AccentInkPaletteV1.Expand(accentFixture, missingEyePalette, 4);
+Check(rescuedEye.Stats.AddedCenters >= 1 &&
+      rescuedEye.Stats.QualifiedHueBins >= 1 &&
+      rescuedEye.Stats.SampledSolidCorePixels > 0 &&
+      rescuedEye.Colors.Any(c => Oklab.DistSq(c, yellowLab) < 0.015 * 0.015),
+    "Opt-in accent palette recovers source-backed solid yellow eye");
+var repeatedEye = AccentInkPaletteV1.Expand(accentFixture, missingEyePalette, 4);
+Check(rescuedEye.Stats == repeatedEye.Stats &&
+      rescuedEye.Colors.SequenceEqual(repeatedEye.Colors),
+    "Accent candidate grouping and palette order are deterministic");
+var cappedEye = AccentInkPaletteV1.Expand(accentFixture, missingEyePalette, 2);
+Check(cappedEye.Stats.AddedCenters == 0 &&
+      cappedEye.Colors.SequenceEqual(missingEyePalette),
+    "Accent seeds honor maximum color count, even when hue is missing");
+
+var noiseAccent = new RasterImage(128, 128);
+for (int y = 0; y < 128; y++)
+for (int x = 0; x < 128; x++)
+    noiseAccent.SetPixel(x, y, x % 11 == 0 && y % 13 == 0
+        ? tigerYellow : tigerOrange);
+var rejectedNoise = AccentInkPaletteV1.Expand(noiseAccent,
+    new Lab[] { orangeLab }, 4);
+Check(rejectedNoise.Stats.AddedCenters == 0 &&
+      rejectedNoise.Stats.QualifiedHueBins == 0,
+    "Isolated JPEG-style chromatic speckles cannot become new pigments");
+
+var defaultEye = Tracer.Trace(accentFixture, new TraceOptions
+{
+    Style = ImageStyle.Crisp, Detail = DetailLevel.High,
+    ShapeMode = ShapeMode.Stacked,
+    CurveFitting = false, PolygonEpsilon = 0
+});
+var exactEyeWithGuard = Tracer.Trace(accentFixture, new TraceOptions
+{
+    Style = ImageStyle.Crisp, Detail = DetailLevel.High,
+    ShapeMode = ShapeMode.Stacked,
+    CurveFitting = false, PolygonEpsilon = 0,
+    AccentInkV1 = true
+});
+Check(SvgWriter.Write(defaultEye.Document) ==
+      SvgWriter.Write(exactEyeWithGuard.Document) &&
+      exactEyeWithGuard.Diagnostics.AccentInk.AddedCenters == 0,
+    "Exact crisp palettes never get changed by optional chromatic seed guard");
+
+var noInkOption = Tracer.Trace(layeredFixture, LayerOptions(false));
+var explicitInkOff = Tracer.Trace(layeredFixture, new TraceOptions
+{
+    Style = ImageStyle.Crisp, Detail = DetailLevel.High,
+    ShapeMode = ShapeMode.Stacked,
+    CurveFitting = false, PolygonEpsilon = 0,
+    AccentInkV1 = false
+});
+Check(SvgWriter.Write(noInkOption.Document) ==
+      SvgWriter.Write(explicitInkOff.Document),
+    "Existing output stays byte-identical when chromatic rescue is OFF");
