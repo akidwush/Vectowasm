@@ -55,7 +55,7 @@ jobs:
           assert 'canvas[hidden]{display:none!important}' in style
           assert 'data-preview-loading' in comp
           assert 'context.drawImage(image,0,0)' in js
-          assert 'svg.setAttribute("viewBox",next)' in js
+          assert 'svg.setAttribute("viewBox", next)' in js
           assert 'state.imageWidth * fit * state.zoom - w' in js
           assert 'state.imageHeight * fit * state.zoom - h' in js
           assert 'onPointerDown' in js and 'onPointerMove' in js and 'onWheel' in js
