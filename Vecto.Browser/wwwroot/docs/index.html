@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#235b9b">
+  <meta name="description" content="Dokumentasi resmi DikaTrace: panduan image-to-SVG, pengaturan kualitas, pipeline vektorisasi, metadata, dan penyelesaian masalah.">
+  <title>Dokumentasi DikaTrace — Panduan & Cara Kerja Engine</title>
+  <link rel="stylesheet" href="./docs.css?v=1">
+  <script type="module" src="./docs.js?v=1"></script>
+</head>
+<body>
+<a class="skip" href="#content">Lewati ke konten</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="identity" href="../" aria-label="Kembali ke studio DikaTrace">
+      <span class="identity-mark" aria-hidden="true">D</span>
+      <span><strong>DikaTrace</strong><small>Image to SVG Studio</small></span>
+    </a>
+    <nav class="top-links" aria-label="Navigasi utama">
+      <a class="is-current" href="./" aria-current="page">Dokumentasi</a>
+      <a class="studio-link" href="../">Buka Studio <span aria-hidden="true">↗</span></a>
+    </nav>
+  </div>
+</header>
+<div class="reading-progress" aria-hidden="true"><span id="reading-progress"></span></div>
+<div class="documentation">
+  <aside class="sidebar" aria-label="Daftar isi">
+    <div class="sidebar-inner">
+      <div class="sidebar-caption">PUSAT BANTUAN</div>
+      <label class="search-label" for="doc-search">Cari di dokumentasi</label>
+      <input id="doc-search" type="search" autocomplete="off" placeholder="Contoh: Bézier, warna, unduh…" aria-describedby="search-result">
+      <p id="search-result" class="search-result" aria-live="polite">Jelajahi panduan DikaTrace.</p>
+      <nav class="contents" aria-label="Bagian dokumentasi">
+        <a href="#pengenalan">Pengenalan</a>
+        <a href="#mulai">Cara menggunakan</a>
+        <a href="#pengaturan">Panduan pengaturan</a>
+        <a href="#pipeline">Mekanisme pemrosesan</a>
+        <a href="#mode">Planar & Stacked</a>
+        <a href="#eksperimen">Fitur eksperimental</a>
+        <a href="#metadata">Metadata & A/B</a>
+        <a href="#tips">Tips kualitas SVG</a>
+        <a href="#masalah">Mengatasi masalah</a>
+        <a href="#privasi">Privasi & batasan</a>
+      </nav>
+      <div class="sidebar-bottom"><span class="status-dot" aria-hidden="true"></span> Panduan berdasarkan versi engine yang berjalan di browser.</div>
+    </div>
+  </aside>
+  <main class="main" id="content">
+    <section id="pengenalan" class="doc-section hero" data-section>
+      <p class="eyebrow">DOKUMENTASI / PANDUAN RESMI</p>
+      <h1>Dari gambar raster menjadi <span>SVG yang bisa diedit.</span></h1>
+      <p class="lead">Pelajari cara menggunakan DikaTrace dan pahami bagaimana gambar diproses, mulai dari pembacaan piksel sampai penyusunan path Bézier. Ditulis untuk pemula, editor, dan pengguna yang ingin memahami proses teknisnya.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#mulai">Mulai panduan <span aria-hidden="true">→</span></a>
+        <a class="btn btn-quiet" href="#pipeline">Pelajari cara kerja</a>
+      </div>
+      <div class="keyfacts" aria-label="Kemampuan utama">
+        <div><strong>PNG · JPG · WebP · BMP</strong><span>Format input</span></div>
+        <div><strong>SVG</strong><span>Hasil vektor</span></div>
+        <div><strong>Di browser</strong><span>Proses lokal</span></div>
+      </div>
+    </section>
+
+    <section id="mulai" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">01</span><div><p class="eyebrow">QUICK START</p><h2>Cara menggunakan DikaTrace</h2></div></div>
+      <p class="section-intro">Konversi pertama tidak memerlukan konfigurasi khusus. Gunakan pengaturan otomatis terlebih dahulu, lalu sesuaikan bila ada detail yang perlu ditingkatkan.</p>
+      <ol class="walkthrough">
+        <li><span class="step-icon">01</span><div><h3>Buka studio dan pilih gambar</h3><p>Masuk ke <a href="../">DikaTrace Studio</a>, lalu pilih file <strong>PNG, JPG/JPEG, WebP, atau BMP</strong>. Batas input saat ini <strong>20 MB dan 8 megapiksel</strong>. Pratinjau gambar asli akan muncul.</p></div></li>
+        <li><span class="step-icon">02</span><div><h3>Tentukan susunan bentuk</h3><p>Pilih <strong>Berdampingan (Planar)</strong> untuk region yang berbagi batas, atau <strong>Bertumpuk (Stacked)</strong> untuk gambar dengan bentuk/lapisan saling menutupi, seperti logo maskot.</p></div></li>
+        <li><span class="step-icon">03</span><div><h3>Atur jenis gambar dan detail</h3><p>Mulailah dengan <strong>Jenis gambar: Otomatis</strong> dan <strong>Detail: Sedang</strong>. Untuk ilustrasi antialias yang rumit, coba <strong>Ilustrasi halus + Tinggi</strong>.</p></div></li>
+        <li><span class="step-icon">04</span><div><h3>Buat SVG</h3><p>Tekan <strong>Buat SVG</strong>. DikaTrace akan menyiapkan piksel, mengelompokkan warna, membangun region dan batas, memasang kurva, lalu menghasilkan dokumen SVG.</p></div></li>
+        <li><span class="step-icon">05</span><div><h3>Periksa hasil dan metadata</h3><p>Gunakan tombol <strong>Asli</strong>, <strong>SVG</strong>, dan <strong>Bandingkan</strong> untuk menilai hasil. Zoom bagian sulit: sudut, teks kecil, mata, garis tipis, serta warna penting. Buka panel metadata untuk melihat jumlah path dan segmen.</p></div></li>
+        <li><span class="step-icon">06</span><div><h3>Unduh dan edit</h3><p>Tekan <strong>Unduh SVG</strong>. File dapat dibuka di aplikasi editor yang mendukung SVG. Jika unduhan tidak berjalan di browser tertentu, gunakan opsi <strong>buka SVG</strong> lalu simpan dari browser.</p></div></li>
+      </ol>
+      <div class="note"><strong>Tip:</strong> simpan satu hasil dengan semua fitur eksperimen OFF sebagai baseline. Ini berguna saat membandingkan hasil optimasi baru.</div>
+    </section>
+
+    <section id="pengaturan" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">02</span><div><p class="eyebrow">KONTROL KUALITAS</p><h2>Memahami setiap pengaturan</h2></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pengaturan</th><th>Fungsi</th><th>Saran awal</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Jenis gambar</th><td>Menentukan profil untuk warna tajam, ilustrasi halus, atau foto bertekstur.</td><td>Otomatis; coba Ilustrasi halus untuk maskot dengan tepi antialias.</td></tr>
+            <tr><th scope="row">Detail</th><td>Mengatur toleransi dan tingkat perincian bentuk.</td><td>Sedang untuk mulai; Tinggi jika bentuk kecil hilang.</td></tr>
+            <tr><th scope="row">Jumlah warna</th><td>Diestimasi otomatis dari warna yang cukup didukung piksel gambar.</td><td>Biarkan otomatis; terlalu banyak warna dapat memperbanyak region.</td></tr>
+            <tr><th scope="row">Susunan bentuk</th><td>Menentukan apakah bentuk berdampingan atau disusun saling menutupi.</td><td>Planar untuk ilustrasi datar; Stacked untuk maskot berlapis.</td></tr>
+            <tr><th scope="row">Kurva Bézier</th><td>Memasang kurva pada kontur yang diekstrak.</td><td>Aktif untuk ilustrasi dan logo halus.</td></tr>
+            <tr><th scope="row">Minimalkan titik Bézier</th><td>Mengurangi segmen kurva yang berlebihan dengan tetap menjaga sudut terpilih.</td><td>Aktif; bandingkan hasil bila detail tipis berubah.</td></tr>
+            <tr><th scope="row">Seed</th><td>Nilai awal proses pemilihan pusat warna ketika diperlukan.</td><td>Biarkan 1 agar hasil konsisten saat pengujian.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="preset-grid">
+        <article class="preset"><span class="preset-label">LOGO & IKON</span><h3>Warna datar</h3><p>Jenis: Ilustrasi tajam · Detail: Sedang/Tinggi · Bentuk: Planar.</p></article>
+        <article class="preset"><span class="preset-label">MASKOT KOMPLEKS</span><h3>Lapisan & kurva</h3><p>Jenis: Ilustrasi halus · Detail: Tinggi · Bentuk: Stacked · Bézier aktif.</p></article>
+        <article class="preset"><span class="preset-label">FOTO</span><h3>Tekstur rumit</h3><p>Jenis: Foto/Otomatis · Mulai dari Detail Sedang. SVG mungkin besar dan tidak selalu cocok untuk foto.</p></article>
+      </div>
+    </section>
+
+    <section id="pipeline" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">03</span><div><p class="eyebrow">DI BALIK ENGINE</p><h2>Mekanisme pemrosesan gambar</h2></div></div>
+      <p class="section-intro">DikaTrace menggunakan pipeline vektorisasi deterministik berbasis analisis piksel dan geometri. Engine tidak sekadar membungkus foto menjadi SVG, tetapi membentuk region warna, menelusuri batasnya, dan menyusun path vektor baru.</p>
+      <div class="pipeline-overview" role="img" aria-label="Alur pemrosesan: Input raster, persiapan piksel, palet, segmentasi, boundary graph, fitting Bézier, penyusunan bentuk, SVG">
+        <span>RASTER</span><b aria-hidden="true">→</b><span>PALET</span><b aria-hidden="true">→</b><span>REGION</span><b aria-hidden="true">→</b><span>GEOMETRI</span><b aria-hidden="true">→</b><span>SVG</span>
+      </div>
+      <div class="pipeline-list">
+        <article class="pipeline-step"><span>01</span><div><h3>Decoding dan pembacaan piksel</h3><p>File diubah menjadi data piksel RGBA beserta ukuran aslinya. PNG dan JPEG yang didukung memakai decoder C#; format atau variasi yang tidak didukung dapat memakai decoder browser. Pemeriksaan dimensi membatasi beban memori.</p></div></article>
+        <article class="pipeline-step"><span>02</span><div><h3>Persiapan piksel</h3><p>Tahap penyiapan mengevaluasi noise dan variasi warna di bidang rata. Pada input yang memenuhi kriteria, perbedaan warna kecil dapat dibersihkan. Tepi berkontras tinggi, dimensi dan transparansi diprioritaskan agar tidak berubah. Foto dan gradasi yang tidak cocok dapat dilewatkan.</p></div></article>
+        <article class="pipeline-step"><span>03</span><div><h3>Estimasi palet</h3><p>Engine menganalisis warna dominan dan area warna yang relatif stabil. Untuk gambar non-exact, pusat warna dihitung melalui pengelompokan di ruang persepsi <strong>Oklab</strong>, dengan inisialisasi <strong>k-means++</strong>. Pusat warna yang terlalu dekat dapat digabung sesuai profil.</p></div></article>
+        <article class="pipeline-step"><span>04</span><div><h3>Segmentasi dan koreksi fringe</h3><p>Setiap piksel buram/solid diberi label warna. Label yang berdekatan membentuk komponen region. Sistem mempertimbangkan tepian antialias, serpihan area kecil, dan indikasi noise JPEG berdasarkan profil gambar, agar batas bentuk tidak dipenuhi fragmen yang tidak perlu.</p></div></article>
+        <article class="pipeline-step"><span>05</span><div><h3>Boundary graph dengan shared-edge</h3><p>Engine menelusuri batas antarregion sebagai <em>rantai geometri bersama</em>. Ketika dua region bertetangga, batas yang sama dapat digunakan dengan arah berlawanan. Ini menjaga konsistensi tepi sebelum tahap fitting dan mengurangi risiko celah akibat dua batas yang dihitung terpisah.</p></div></article>
+        <article class="pipeline-step"><span>06</span><div><h3>Sudut, subpiksel, dan fitting Bézier</h3><p>Kontur diperiksa untuk menemukan sudut struktural. Titik yang aman dihaluskan, lalu posisi tepi dapat disesuaikan secara subpiksel. Kurva kubik Bézier dipasang dengan toleransi berdasarkan tingkat Detail; optimasi node membandingkan kandidat penyederhanaan sambil menjaga sudut yang dilindungi.</p></div></article>
+        <article class="pipeline-step"><span>07</span><div><h3>Penyusunan region menjadi bentuk</h3><p>Dalam <strong>Planar</strong>, region mempertahankan struktur batas berdampingan. Dalam <strong>Stacked</strong>, engine memperhitungkan urutan gambar dan penutupan region tertentu untuk membentuk lapisan yang tampak. Susunan ini berdasarkan geometri—bukan pemahaman semantik seperti mengenali “mata” atau “rambut”.</p></div></article>
+        <article class="pipeline-step"><span>08</span><div><h3>Penulisan SVG dan ekspor</h3><p>Dokumen akhir ditulis sebagai <strong>SVG 1.1</strong>, menggunakan path langsung, warna isi solid, koordinat dua desimal, dan instruksi seperti <code>M</code>, <code>L</code>, <code>C</code>, <code>Z</code>. File dibentuk dalam browser dan disediakan melalui tautan unduh.</p></div></article>
+      </div>
+      <div class="note"><strong>Penting:</strong> kualitas SVG ditentukan oleh akurasi palet, segmentasi, kontur, dan kurva secara bersama-sama. Jumlah node atau ukuran file yang lebih kecil bukan bukti otomatis bahwa hasilnya lebih akurat.</div>
+    </section>
+
+    <section id="mode" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">04</span><div><p class="eyebrow">STRUKTUR SVG</p><h2>Planar dibandingkan Stacked</h2></div></div>
+      <div class="mode-grid">
+        <article class="mode-card">
+          <div class="mode-visual planar-visual" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span class="mode-tag">BERDAMPINGAN</span><h3>Planar</h3>
+          <p>Region dipertahankan sebagai bagian-bagian yang bertemu pada batas bersama. Cocok untuk bidang warna datar atau saat konsistensi tepi antarregion menjadi prioritas.</p>
+        </article>
+        <article class="mode-card">
+          <div class="mode-visual stacked-visual" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span class="mode-tag">BERTUMPUK</span><h3>Stacked</h3>
+          <p>Region disusun dengan urutan gambar sehingga beberapa bentuk bisa berada di depan atau di belakang bentuk lain. Cocok untuk maskot dan ilustrasi berlapis.</p>
+        </article>
+      </div>
+      <p class="fineprint">Keduanya menghasilkan path SVG, bukan lapisan bitmap. Stacked tidak secara otomatis mampu menebak bagian objek yang sepenuhnya tersembunyi.</p>
+    </section>
+
+    <section id="eksperimen" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">05</span><div><p class="eyebrow">FITUR LANJUTAN</p><h2>Eksperimen kualitas</h2></div></div>
+      <p class="section-intro">Fitur berikut tersedia sebagai opsi uji. Semuanya <strong>nonaktif secara default</strong> agar hasil standar tidak berubah tanpa keputusan pengguna.</p>
+      <div class="feature-list">
+        <article><div><h3>Local Edge V3</h3><span>Engine koreksi tepi</span></div><p>Menguji penyesuaian kecil titik tepi yang memiliki bukti perubahan coverage. Pilih <strong>Bandingkan A/B</strong> untuk menghasilkan Original dan V3 dengan parameter identik.</p></article>
+        <article><div><h3>Region Merge V1</h3><span>Pengaturan lanjutan</span></div><p>Mencoba menyatukan komponen region kecil hanya jika kedekatan warna, tetangga, dan kondisi topologi mendukung.</p></article>
+        <article><div><h3>Anti-alias Aware Segmentation V1</h3><span>Pengaturan lanjutan</span></div><p>Menganalisis pita warna transisi tipis agar tidak menjadi region terpisah tanpa alasan kuat. Beberapa kategori input secara sengaja dilewatkan.</p></article>
+        <article><div><h3>Stacked Layer Reasoning V1</h3><span>Khusus mode Stacked</span></div><p>Mencoba mengemas path sewarna yang boleh berdampingan dalam urutan gambar. Jika pemeriksaan raster menemukan perubahan, kandidat dapat dibatalkan dan hasil lama digunakan.</p></article>
+      </div>
+      <div class="warning"><strong>Perlu diketahui:</strong> fitur eksperimen tidak dijamin memperbaiki semua gambar. Uji satu per satu terhadap baseline sebelum menggabungkannya. Tombol A/B Original–V3 hanya membandingkan V3, bukan otomatis seluruh opsi eksperimen.</div>
+    </section>
+
+    <section id="metadata" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">06</span><div><p class="eyebrow">ANALISIS OUTPUT</p><h2>Memahami metadata & perbandingan A/B</h2></div></div>
+      <p>Setelah SVG dibuat, bagian <strong>Metadata SVG</strong> menampilkan statistik dokumen yang dihasilkan. Data ini berguna untuk menilai ukuran, susunan geometri, dan perubahan eksperimen.</p>
+      <div class="metric-grid">
+        <div><strong>Path / Subpath</strong><span>Elemen dan kontur dalam dokumen vektor.</span></div>
+        <div><strong>Garis L / Kurva C</strong><span>Jumlah perintah geometri lurus dan Bézier.</span></div>
+        <div><strong>Warna HEX</strong><span>Palet warna fill yang digunakan SVG.</span></div>
+        <div><strong>Node & Optimasi</strong><span>Jumlah node fitting dan hasil optimasi.</span></div>
+        <div><strong>Ukuran & ViewBox</strong><span>Ukuran byte serta sistem koordinat SVG.</span></div>
+        <div><strong>Waktu tracing</strong><span>Durasi tahap palet, segmentasi, batas, fitting.</span></div>
+      </div>
+      <p>Mode A/B Original vs V3 dapat memperlihatkan <strong>MAE RGB, IoU mask gelap, dan SSIM luminans lokal 8×8</strong> pada pratinjau berukuran terbatas. SSIM tersebut bukan perhitungan Gaussian SSIM standar. IoU mask hitam-putih juga tidak dapat menjelaskan semua perbedaan ilustrasi berwarna.</p>
+    </section>
+
+    <section id="tips" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">07</span><div><p class="eyebrow">BEST PRACTICES</p><h2>Cara mendapatkan SVG lebih rapi</h2></div></div>
+      <div class="advice-list">
+        <div><span>01</span><p><strong>Gunakan input resolusi baik.</strong> Logo PNG dengan warna solid umumnya lebih mudah diproses dibanding JPG yang memiliki artefak kompresi.</p></div>
+        <div><span>02</span><p><strong>Jangan selalu mengejar banyak warna.</strong> Warna terlalu banyak dapat menambah fragmen dan path; terlalu sedikit dapat menghilangkan aksen kecil.</p></div>
+        <div><span>03</span><p><strong>Periksa area paling sulit.</strong> Perbesar ujung rambut/bulu, garis tebal-tipis, lingkaran, mata, gigi, dan sudut kecil.</p></div>
+        <div><span>04</span><p><strong>Bandingkan di pengaturan yang sama.</strong> Gunakan gambar, detail, jenis gambar, dan seed identik ketika menguji Original versus fitur eksperimen.</p></div>
+        <div><span>05</span><p><strong>Nilai bentuk dan kemudahan edit.</strong> SVG berukuran lebih kecil atau jumlah path sedikit tetap bisa memiliki hasil visual yang lebih buruk.</p></div>
+      </div>
+    </section>
+
+    <section id="masalah" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">08</span><div><p class="eyebrow">TROUBLESHOOTING</p><h2>Pertanyaan yang sering muncul</h2></div></div>
+      <div class="faq">
+        <details><summary>Kenapa hasil SVG terlihat patah atau tidak halus?</summary><p>Coba aktifkan Kurva Bézier, naikkan Detail, dan periksa apakah input terlalu kecil atau terkompresi. Jangan langsung mengaktifkan semua eksperimen sekaligus.</p></details>
+        <details><summary>Kenapa warna kecil seperti mata atau aksen hilang?</summary><p>Palet otomatis mengutamakan warna yang memiliki dukungan cukup pada sumber. Warna dengan area sangat kecil atau tercampur noise bisa terwakili oleh warna lain. Coba input PNG yang lebih bersih dan bandingkan mode Ilustrasi halus/Tinggi; tidak ada jaminan setiap warna kecil dipertahankan.</p></details>
+        <details><summary>Kenapa SVG punya banyak path atau ukuran besar?</summary><p>Gambar rumit memiliki lebih banyak region dan batas. Jumlah path juga dipengaruhi mode Planar/Stacked. Lihat angka segmen L/C dan hasil render, bukan hanya ukuran berkas.</p></details>
+        <details><summary>Kenapa tombol unduh tidak bekerja di HP?</summary><p>Coba tautan cadangan <strong>Buka SVG lalu simpan lewat browser</strong>. Beberapa WebView membatasi unduhan dari blob URL. Browser Chrome/Firefox terbaru biasanya lebih kompatibel.</p></details>
+        <details><summary>Kenapa proses terasa lama atau tab berhenti merespons?</summary><p>Tracing dan perakitan SVG mengonsumsi CPU dan memori perangkat yang digunakan. Coba input lebih kecil, Detail Sedang, atau kurangi kompleksitas gambar. Pemrosesan lokal tidak otomatis berarti instan.</p></details>
+        <details><summary>Apakah hasil Stacked selalu lebih bagus daripada Planar?</summary><p>Tidak. Stacked mengubah struktur tumpukan path dan mungkin lebih cocok untuk gambar tertentu, tetapi bentuk yang sulit tetap perlu dibandingkan secara visual.</p></details>
+        <details><summary>Bisakah SVG langsung menjadi file Alight Motion?</summary><p>DikaTrace mengekspor SVG standar. Konversi ke format lain perlu aplikasi atau alat konversi yang mendukung SVG; proses tersebut tidak termasuk ekspor SVG bawaan di halaman ini.</p></details>
+      </div>
+    </section>
+
+    <section id="privasi" class="doc-section" data-section>
+      <div class="section-heading"><span class="section-number">09</span><div><p class="eyebrow">TRANSPARANSI TEKNIS</p><h2>Privasi, lingkungan, dan batasan</h2></div></div>
+      <div class="privacy-grid">
+        <div><h3>Diproses di perangkat</h3><p>Tracing berjalan dengan C# di <strong>Blazor WebAssembly (.NET 8)</strong>. Gambar yang dipilih tidak sengaja dikirim ke server untuk diproses. Halaman statis dan aset aplikasi tetap dimuat melalui hosting web.</p></div>
+        <div><h3>Batas input</h3><p>File yang dipilih dibatasi <strong>20 MB / 8 MP</strong>. Browser dan RAM perangkat dapat menambah keterbatasan praktis.</p></div>
+        <div><h3>Fidelity</h3><p>SVG adalah representasi vektor hasil perkiraan dari piksel. Bentuk sangat rumit, gradasi halus, foto, dan aksen kecil dapat berbeda dari gambar asal.</p></div>
+        <div><h3>Kode sumber & ketentuan</h3><p>Dokumentasi ini menjelaskan kemampuan dan alur kerja DikaTrace. Informasi kode sumber, dependensi, serta ketentuan penggunaan tersedia pada <a href="https://github.com/akidwush/Vectowasm" target="_blank" rel="noopener noreferrer">repositori proyek</a>.</p></div>
+      </div>
+    </section>
+
+    <section class="end-cta" aria-label="Buka aplikasi">
+      <p class="eyebrow">SUDAH SIAP?</p>
+      <h2>Coba langsung di DikaTrace Studio.</h2>
+      <p>Mulai dari pengaturan otomatis, buat SVG pertama, lalu gunakan dokumentasi ini untuk menyempurnakan hasil.</p>
+      <a class="btn btn-light" href="../">Buka DikaTrace Studio <span aria-hidden="true">→</span></a>
+    </section>
+    <footer class="footer">
+      <span>DikaTrace · Dokumentasi penggunaan dan mekanisme engine</span>
+      <a href="#pengenalan">Kembali ke atas ↑</a>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
