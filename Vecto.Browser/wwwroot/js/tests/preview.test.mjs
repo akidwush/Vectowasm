@@ -27,33 +27,55 @@ test("anchored wheel/pinch zoom keeps pointer's image position fixed",()=>{
   assert.ok(Math.abs((client.x-w/2-s.x)/s.zoom-px)<1e-9);
   assert.ok(Math.abs((client.y-h/2-s.y)/s.zoom-py)<1e-9);
 });
-test("pan clamps correctly at fit, deep zoom, and maximum zoom",()=>{
-  const s={zoom:1,x:999,y:-999};
-  m.panBounds(s,800,400);
-  assert.equal(s.x,0);assert.equal(s.y,0);
-  m.zoomAt(s,1000,400,200,800,400);
-  assert.equal(s.zoom,1000);
-  s.x=9999999;s.y=-9999999;
-  m.panBounds(s,800,400);
-  assert.equal(s.x,399600);
-  assert.equal(s.y,-199800);
-  m.zoomAt(s,0.001,400,200,800,400);
-  assert.equal(s.zoom,1);
-  assert.equal(s.x,0);assert.equal(s.y,0);
+test("non-square source uses real image bounds; portrait/landscape cannot pan to blank",()=>{
+  const landscape={zoom:2,x:9999,y:9999,imageWidth:1200,imageHeight:200};
+  m.panBounds(landscape,600,400);
+  assert.equal(landscape.x,300); // fit .5, width 1200px at 2x
+  assert.equal(landscape.y,0);   // height 200px < viewport, no fake pan
+  const portrait={zoom:3,x:9999,y:9999,imageWidth:200,imageHeight:1200};
+  m.panBounds(portrait,600,400);
+  assert.equal(portrait.x,0); // image narrower than viewport
+  assert.equal(portrait.y,400); // fit 1/3, height 1200px at 3x
+  const reset={zoom:1,x:-5000,y:9000,imageWidth:1200,imageHeight:300};
+  m.panBounds(reset,600,400);
+  assert.equal(reset.x,0);
+  assert.equal(reset.y,0);
 });
-test("slider labels and clamp avoid NaN in standard bounds",()=>{
-  assert.equal(m.zoomLabel(1),"1×");
-  assert.equal(m.zoomLabel(1000),"1000×");
-  assert.equal(m.clamp(101,0,100),100);
-  assert.equal(m.clamp(-1,0,100),0);
+test("viewBox crop mathematically covers visible viewport at all zoom levels",()=>{
+  const s={zoom:1,x:0,y:0,imageWidth:1536,imageHeight:1536};
+  const full=m.viewWindow(s,360,520);
+  assert.equal(full.width,1536); // square fully covers screen width
+  assert.ok(full.y<0); // gray letterbox above/below at fit is expected
+  m.zoomAt(s,1000,180,260,360,520);
+  const detail=m.viewWindow(s,360,520);
+  assert.ok(Math.abs(detail.width-1.536)<1e-10);
+  assert.ok(Math.abs(detail.height-(520/360*1.536))<1e-10);
+  assert.ok(detail.x>=0 && detail.x+detail.width<=1536+1e-7);
+  assert.ok(detail.y>=0 && detail.y+detail.height<=1536+1e-7);
+  const previous={...s};
+  m.zoomAt(s,4,180,260,360,520);
+  assert.equal(s.zoom,4);
+  assert.ok(Math.abs(s.x)<1e-9&&Math.abs(s.y)<1e-9);
+  assert.ok(previous.zoom===1000);
 });
-test("controller implements rAF coalescing and no per-gesture canvas work",()=>{
-  assert.match(code,/if \(state\.frame\) return;/);
+test("high zoom cannot overshoot when pan is several million CSS pixels",()=>{
+  const s={zoom:1000,x:1e9,y:-1e9,imageWidth:1536,imageHeight:1536};
+  m.panBounds(s,360,520);
+  const r=m.viewWindow(s,360,520);
+  assert.ok(r.x>=-1e-7 && r.x+r.width<=1536+1e-7);
+  assert.ok(r.y>=-1e-7 && r.y+r.height<=1536+1e-7);
+});
+test("rAF coalescing, fixed canvas, native SVG viewBox and safe parser",()=>{
+  assert.match(code,/if\(state\.frame\)return;/);
   assert.match(code,/requestAnimationFrame\(/);
   assert.match(code,/\.setPointerCapture\(/);
   assert.match(code,/pointercancel/);
   assert.match(code,/lostpointercapture/);
   assert.match(code,/ResizeObserver/);
-  assert.match(code,/clip-path/); // explanatory header
-  assert.doesNotMatch(code,/\.toDataURL\(|\.getImageData\(|\.drawImage\(/);
+  assert.match(code,/context\.drawImage\(image,0,0\)/);
+  assert.match(code,/svg\.setAttribute\("viewBox",next\)/);
+  assert.match(code,/source\.replace\(\/<\\\?xml/); // parser removes declaration
+  assert.match(code,/createElementNS\(SVG_NS,"path"\)/);
+  assert.doesNotMatch(code,/\.toDataURL\(|\.getImageData\(/);
+  assert.doesNotMatch(code,/transform:translate3d|scale\(var\(--preview-zoom\)\)/);
 });
