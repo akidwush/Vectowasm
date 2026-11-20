@@ -46,7 +46,17 @@ jobs:
           assert 'mismatch > 0' in layering
           assert 'StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked' in ui
           assert 'Layer Reasoning V1' in metadata
-          print('PASS opt-in region and stacked layer reasoning, occlusion DAG and pixel fallback')
+          aa = Path('Vecto.Core/AntiAliasBandRefiner.cs').read_text()
+          assert 'public bool AntiAliasBandV1 { get; set; } = false;' in options
+          assert 'if (options.AntiAliasBandV1 && !aaSkipped)' in tracer
+          assert 'AntiAliasBandRefiner.Refine(img, labels, palette, ct)' in tracer
+          assert 'AntiAliasBandV1 = antiAliasBandV1' in ui
+          assert 'touchesVoid' in aa and 'MaxBandThickness' in aa
+          assert 'sourceCore * 4 >= members.Count' in aa
+          assert 'regionCount - after != accepted' in aa
+          assert 'Array.Copy(sourceLabels, labels, labels.Length)' in aa
+          assert 'Anti-alias Aware Segmentation V1' in metadata
+          print('PASS region + stacked + AA opt-ins, topology protection and safe rollback')
           PY
       - name: Run palette, topology and region merge regression tests
         run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
