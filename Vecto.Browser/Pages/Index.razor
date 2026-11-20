@@ -94,13 +94,14 @@
                         </label>
                     </div>
                     <div class="engine-experiment">
-                        <label for="edge-engine">Engine koreksi tepi (eksperimental)</label>
+                        <label for="edge-engine">Engine vektorisasi</label>
                         <select id="edge-engine" @bind="engineMode" disabled="@(running || loadingFile)">
                             <option value="Original">Original — stabil</option>
                             <option value="V3">Local Edge V3 — aktifkan</option>
+                            <option value="Ekstracev1">Ekstracev1 — Bézier G1 (eksperimental)</option>
                             <option value="Compare">Bandingkan A/B — Original vs V3</option>
                         </select>
-                        <p>Mode A/B benar-benar memproses dua SVG secara lokal dengan gambar dan pengaturan identik. V3 belum terbukti lebih baik untuk semua gambar.</p>
+                        <p>Original tetap default. V3 mengoreksi posisi tepi; Ekstracev1 memakai fitting Bézier mandiri pada shared boundary yang sama. A/B khusus Original vs V3. Kualitas Ekstracev1 belum terbukti lebih unggul.</p>
                     </div>
                     <details class="advanced-options">
                         <summary>Pengaturan lanjutan</summary>
@@ -399,7 +400,7 @@
         }
     }
 
-    private TraceOptions BuildOptions(int colors, bool enableV3) => new()
+    private TraceOptions BuildOptions(int colors, bool enableV3, bool enableEkstrace = false) => new()
     {
         Style = style,
         ShapeMode = shapeMode,
@@ -408,7 +409,8 @@
         MaxColors = colors,
         Seed = seed,
         CurveFitting = curveFitting,
-        OptimizeNodes = optimizeNodes,
+        OptimizeNodes = optimizeNodes && !enableEkstrace,
+        ContourFittingEngine = enableEkstrace ? ContourFittingEngine.Ekstracev1 : ContourFittingEngine.Original,
         PolygonEpsilon = polygonEpsilon,
         EdgeCoverageThreshold = 0.5,
         LocalEdgeRefinementV3 = enableV3,
@@ -459,13 +461,14 @@
                 ? (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors
                 : manualColorLimit;
             bool compare = engineMode == "Compare";
-            bool useV3 = engineMode != "Original";
+            bool useV3 = engineMode == "V3" || engineMode == "Compare";
+            bool useEkstrace = engineMode == "Ekstracev1";
 
             // Protect source-backed rare solid inks before accepting an SVG.
             // If a six-color palette swallows real teal/green/red accents,
             // retry at most two extra palette slots. Preserve the old trace
             // unless source color coverage and overall error both improve.
-            var baselineOptions = BuildOptions(colors, compare ? false : useV3);
+            var baselineOptions = BuildOptions(colors, compare ? false : useV3, useEkstrace);
             TraceResult selected = Tracer.Trace(image, baselineOptions);
             int originalBudget = colors;
             if (manualColorLimit == 0 && style != ImageStyle.Photo &&
@@ -478,7 +481,7 @@
                     {
                         int proposed = originalBudget + extra;
                         TraceResult candidate = Tracer.Trace(image,
-                            BuildOptions(proposed, compare ? false : useV3));
+                            BuildOptions(proposed, compare ? false : useV3, useEkstrace));
                         if (!AutoPaletteInkGuard.IsImprovement(image, selected, candidate, ink))
                             continue;
                         selected = candidate;
@@ -492,7 +495,7 @@
             TraceResult? originalTrace = compare ? selected : null;
             TraceOptions? originalOptions = compare ? BuildOptions(colors, false) : null;
             string? originalSvg = compare ? SvgWriter.Write(selected.Document) : null;
-            var traceOptions = BuildOptions(colors, useV3);
+            var traceOptions = BuildOptions(colors, useV3, useEkstrace);
             var traced = compare ? Tracer.Trace(image, traceOptions) : selected;
             string result = SvgWriter.Write(traced.Document);
 
@@ -503,8 +506,8 @@
             primaryStatistics = SvgOutputStatistics.Analyze(traced.Document, result);
             primaryDiagnostics = traced.Diagnostics;
             primaryTraceOptions = traceOptions;
-            primaryEngineName = useV3 ? "Local Edge V3" : "Original";
-            primaryDownloadName = MakeSvgDownloadName(sourceName, useV3 ? "-local-edge-v3" : "");
+            primaryEngineName = useEkstrace ? "Ekstracev1" : useV3 ? "Local Edge V3" : "Original";
+            primaryDownloadName = MakeSvgDownloadName(sourceName, useEkstrace ? "-ekstracev1" : useV3 ? "-local-edge-v3" : "");
             svgText = result;
             svgUrl = await Js.InvokeAsync<string>("vecto.createUrl",
                 System.Text.Encoding.UTF8.GetBytes(result), "image/svg+xml");
@@ -536,9 +539,11 @@
                     ? $" · Stacked Layer V1: fallback (selisih {traced.Diagnostics.StackedLayers.PixelMismatches:N0} piksel)"
                     : $" · Stacked Layer V1: -{traced.Diagnostics.StackedLayers.PathsSaved:N0} path / {traced.Diagnostics.StackedLayers.ComparedPixels:N0} piksel diverifikasi"
                 : "";
-            string v3Info = useV3
-                ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
-                : " · Engine Original";
+            string v3Info = useEkstrace
+                ? " · Engine Ekstracev1: chord/refined G1 · reducer Vecto dilewati"
+                : useV3
+                    ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
+                    : " · Engine Original";
             string inkInfo = protectedColorLimit is { } cap
                 ? $" · Warna aksen terjaga (batas palet {originalBudget} → {cap})"
                 : "";
