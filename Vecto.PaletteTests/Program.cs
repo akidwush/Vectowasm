@@ -730,3 +730,24 @@ Check(fourWayStacked.Diagnostics.RegionMergeV1VerifiedCracks ==
       fourWayTrace.Diagnostics.RegionMergeV1VerifiedCracks &&
       fourWayStacked.Document.Regions.Count == 4,
     "Planar and Stacked share the same verified topology at four-way junction");
+
+var fourWayRendered = Rasterizer.Render(fourWayTrace.Document, supersample: 1);
+var fourWayStackedRendered = Rasterizer.Render(fourWayStacked.Document, supersample: 1);
+Check(fourWayRendered.Pixels.SequenceEqual(fourWayStackedRendered.Pixels),
+    "Four-way planar/stacked outputs remain exactly equivalent as pixels");
+Check(fourWayRendered.Pixels.SequenceEqual(fourWayImage.Pixels),
+    "Exact-palette four-way graph keeps every input pixel without holes or overlaps");
+
+var transparentWithGuard = Tracer.Trace(transparentRing, new TraceOptions
+{
+    Style = ImageStyle.Crisp,
+    ShapeMode = ShapeMode.Stacked,
+    Detail = DetailLevel.High,
+    CurveFitting = false,
+    PolygonEpsilon = 0,
+    RegionMergeV1 = true
+});
+Check(Rasterizer.Render(transparentWithGuard.Document, supersample: 1)
+        .GetPixel(20, 20).A == 0 &&
+      transparentWithGuard.Diagnostics.RegionMergeV1VerifiedContours >= 2,
+    "Topology guard validates contour sides while preserving genuine transparent holes");
