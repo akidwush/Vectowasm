@@ -449,3 +449,25 @@ var baselineV3Default = Tracer.Trace(StackedFixture(), new TraceOptions
 Check(SvgWriter.Write(baselineV3Off.Document) ==
       SvgWriter.Write(baselineV3Default.Document),
     "V3 opt-in never changes production baseline SVG");
+
+
+// Shared-boundary orientation: reversing the contour and exchanging left/right
+// paint colors must yield the same refined geometry in reverse order.
+var reverseTest = Horizontal();
+int countForward = LocalEdgeRefiner.Refine(reverseTest, false,
+    Array.Empty<int>(), localSource,
+    new Rgba32(250, 250, 250, 255),
+    new Rgba32(5, 5, 5, 255), .20);
+var reverseInput = Horizontal();
+reverseInput.Reverse();
+int countBackward = LocalEdgeRefiner.Refine(reverseInput, false,
+    Array.Empty<int>(), localSource,
+    new Rgba32(5, 5, 5, 255),
+    new Rgba32(250, 250, 250, 255), .20);
+reverseInput.Reverse();
+Check(countForward == countBackward &&
+    reverseInput.Zip(reverseTest).All(p => p.First.DistSq(p.Second) < 1e-18),
+    "V3 is orientation-independent when a shared edge is reversed");
+Check(LocalEdgeRefiner.Refine(Horizontal(), false, Array.Empty<int>(),
+    localSource, null, new Rgba32(5, 5, 5, 255), .20) == 0,
+    "V3 preserves real transparent-side boundaries");
