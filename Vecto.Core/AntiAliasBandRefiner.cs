@@ -134,18 +134,24 @@ public static class AntiAliasBandRefiner
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!eligible[r]) continue;
+            int area = components.RegionArea[r];
+            // Distinguish true narrow band candidates from ordinary large
+            // filled regions when reporting how many AA strips were examined.
+            if (perimeter[r] <= 0 ||
+                Math.Max(maxX[r] - minX[r] + 1, maxY[r] - minY[r] + 1) < MinBandLength ||
+                2.0 * area / perimeter[r] > MaxBandThickness)
+                continue;
             considered++;
             var neighbors = borders[r];
             var members = pixelsByRegion[r];
             if (touchesVoid[r] || neighbors is null || neighbors.Count != 2 ||
-                members is null || perimeter[r] <= 0)
+                members is null)
             {
                 protectedCount++;
                 continue;
             }
             var sides = neighbors.OrderBy(pair => pair.Key).ToArray();
             int aRegion = sides[0].Key, bRegion = sides[1].Key;
-            int area = components.RegionArea[r];
             int sideA = sides[0].Value, sideB = sides[1].Value;
             int labelA = components.RegionPalette[aRegion];
             int labelB = components.RegionPalette[bRegion];
@@ -154,8 +160,6 @@ public static class AntiAliasBandRefiner
                 components.RegionArea[aRegion] <= area * 2 ||
                 components.RegionArea[bRegion] <= area * 2 ||
                 sideA * 6 < perimeter[r] || sideB * 6 < perimeter[r] ||
-                Math.Max(maxX[r] - minX[r] + 1, maxY[r] - minY[r] + 1) < MinBandLength ||
-                2.0 * area / perimeter[r] > MaxBandThickness ||
                 Oklab.DistSq(paletteLab[labelA], paletteLab[labelB]) < MinAnchorDistanceSq ||
                 changed + area > pixelBudget)
             {
