@@ -48,11 +48,21 @@ jobs:
           assert 'SvgMetadataPanel' in ui
           assert 'clip-path:inset(0 0 0 var(--preview-split))' in style
           assert 'touch-action:none' in style
-          assert 'transform:translate3d(var(--preview-pan-x),var(--preview-pan-y),0) scale(var(--preview-zoom))' in style
+          assert 'data-preview-raster' in comp and 'data-preview-vector' in comp
+          assert '<img src="@BeforeUrl"' not in comp
+          assert 'vectoPreview.mount", root, BeforeUrl, AfterUrl,' in comp
+          assert 'BeforeIsVector, AfterIsVector' in comp
+          assert 'canvas[hidden]{display:none!important}' in style
+          assert 'data-preview-loading' in comp
+          assert 'context.drawImage(image,0,0)' in js
+          assert 'svg.setAttribute("viewBox",next)' in js
+          assert 'state.imageWidth * fit * state.zoom - w' in js
+          assert 'state.imageHeight * fit * state.zoom - h' in js
           assert 'onPointerDown' in js and 'onPointerMove' in js and 'onWheel' in js
           assert 'const MAX_ZOOM = 1000' in js
-          assert 'vecto-preview.js?v=before-after-22' in index
-          print('PASS: single synchronized preview, Before/After split, zoom and old download/metadata/A-B routes')
+          assert 'vecto-preview.js?v=native-viewbox-23' in index
+          assert 'css/app.css?v=native-viewbox-23' in index
+          print('PASS: viewport-bounded raster, native SVG crop, no large compositor layers, synced A/B and downloads')
           PY
       - uses: actions/setup-dotnet@v4
         with:
