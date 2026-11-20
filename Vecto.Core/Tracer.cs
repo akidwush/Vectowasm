@@ -37,6 +37,10 @@ public sealed class TraceDiagnostics
     public int OptimizedChainNodes { get; init; }
     public int GlobalReducedChains { get; init; }
     public int LocalEdgeV3MovedPoints { get; init; }
+    public int RegionMergeV1Before { get; init; }
+    public int RegionMergeV1After { get; init; }
+    public int RegionMergeV1ChangedPixels { get; init; }
+    public int RegionMergeV1MergedRegions { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -122,6 +126,17 @@ public static class Tracer
                 palette = CompactPalette(img, labels, palette.Count);
                 p.MinRegionArea = noisyMin;
             }
+        }
+        // Run quality-gated region cleanup only after palette compaction and
+        // JPEG-noise handling. Keep legacy output byte-for-byte unchanged by
+        // default; never reassign transparency or alter large sharp regions.
+        RegionMergeStats regionMerge = default;
+        if (options.RegionMergeV1)
+        {
+            regionMerge = RegionMergeRefiner.Refine(img, labels, palette,
+                options.RegionMergeMaxAreaV1, ct);
+            if (regionMerge.RelabeledPixels > 0)
+                palette = CompactPalette(img, labels, palette.Count);
         }
         var seg = Segmenter.Components(labels, w, h);
         long segmentMs = sw.ElapsedMilliseconds;
@@ -278,6 +293,10 @@ public static class Tracer
             OptimizedChainNodes = optimizedChainNodes,
             GlobalReducedChains = globalReducedChains,
             LocalEdgeV3MovedPoints = localV3MovedPoints,
+            RegionMergeV1Before = regionMerge.RegionsBefore,
+            RegionMergeV1After = regionMerge.RegionsAfter,
+            RegionMergeV1ChangedPixels = regionMerge.RelabeledPixels,
+            RegionMergeV1MergedRegions = regionMerge.MergedRegions,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
