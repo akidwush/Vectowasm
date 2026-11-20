@@ -128,7 +128,7 @@ public static class AntiAliasBandRefiner
         Array.Fill(planned, -1);
 
         int considered = 0, accepted = 0, protectedCount = 0;
-        int pixelBudget = Math.Max(1, labels.Length / 100); // at most 1%
+        int pixelBudget = Math.Max(1, labels.Length / 50); // at most 2%
         int changed = 0;
         for (int r = 0; r < regionCount; r++)
         {
