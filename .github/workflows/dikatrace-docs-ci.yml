@@ -75,7 +75,8 @@ jobs:
           assert '<a class="brand" href="../"' in html
           assert '<span class="brand-initial" aria-hidden="true">D</span>' in html
           assert '<div class="brand-name"><strong>DikaTrace</strong><span>Image to SVG</span></div>' in html
-          assert '<meta name="theme-color" content="#245c9b">' in html
+          assert '<meta name="theme-color" content="#235ca4">' in html
+          assert '<meta name="theme-color" content="#235ca4"' in Path("Vecto.Browser/wwwroot/index.html").read_text(encoding="utf-8")
           for token in ("#dce3ea", "#e8edf3", "#245c9b", "#174678",
                         "#f0b657", "#194775", "#f8d795", "#dbe5f0",
                         "#3977b6", "#3c9453", "#a6b7c9"):
