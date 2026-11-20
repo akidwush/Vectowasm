@@ -133,6 +133,8 @@
                     <details class="advanced-options">
                         <summary>Pengaturan lanjutan</summary>
                         <div class="advanced-inside">
+                            <label class="check-option"><input type="checkbox" @bind="accentInkV1" disabled="@(running || loadingFile)" /> Accent Ink V1 — lindungi warna aksen kecil (eksperimen)</label>
+                            <p class="help-text">Khusus Ilustrasi halus: mencoba memulihkan warna solid kecil yang tidak tertangkap palet global, misalnya warna kuning mata maskot. Otomatis OFF, dan dapat diabaikan jika tidak ada bukti warna asli.</p>
                             <label class="check-option"><input type="checkbox" @bind="regionMergeV1" disabled="@(running || loadingFile)" /> Region Merge V1 (eksperimen, opt-in)</label>
                             <p class="help-text">Menggabungkan hanya fragmentasi kecil bila warna sumber dan batas mendukung. Ini terpisah dari Local Edge V3, tidak mengaktifkan otomatis.</p>
                             <label class="check-option"><input type="checkbox" @bind="antiAliasBandV1" disabled="@(running || loadingFile)" /> Anti-alias Aware Segmentation V1 (eksperimen)</label>
@@ -296,6 +298,7 @@
     private DetailLevel detail = DetailLevel.Medium;
     private AutoPaletteEstimate? autoEstimate;
     private int seed = 1;
+    private bool accentInkV1;
     private bool regionMergeV1;
     private bool antiAliasBandV1;
     private bool stackedLayerReasoningV1;
@@ -439,6 +442,7 @@
         EdgeCoverageThreshold = 0.5,
         LocalEdgeRefinementV3 = enableV3,
         RegionMergeV1 = regionMergeV1,
+        AccentInkV1 = accentInkV1,
         AntiAliasBandV1 = antiAliasBandV1,
         StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked
     };
@@ -526,6 +530,9 @@
             string mergeInfo = traceOptions.RegionMergeV1
                 ? $" · Region Merge V1: -{traced.Diagnostics.RegionMergeV1MergedRegions:N0} region / {traced.Diagnostics.RegionMergeV1ChangedPixels:N0} piksel"
                 : "";
+            string inkInfo = traceOptions.AccentInkV1
+                ? $" · Accent Ink V1: +{traced.Diagnostics.AccentInk.AddedCenters:N0} warna / {traced.Diagnostics.AccentInk.SampledSolidCorePixels:N0} sample core"
+                : "";
             string aaInfo = traceOptions.AntiAliasBandV1
                 ? traced.Diagnostics.AntiAliasBandsSkipped
                     ? " · Anti-alias Band V1: dilewati (exact/textured)"
@@ -541,7 +548,7 @@
             string v3Info = useV3
                 ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
                 : " · Engine Original";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{aaInfo}{stackedInfo}";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{inkInfo}{aaInfo}{stackedInfo}";
 
             if (compare && originalTrace is not null && originalSvg is not null && originalOptions is not null)
             {
