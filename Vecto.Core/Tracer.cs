@@ -36,6 +36,7 @@ public sealed class TraceDiagnostics
     public int FittedChainNodes { get; init; }
     public int OptimizedChainNodes { get; init; }
     public int GlobalReducedChains { get; init; }
+    public int LocalEdgeV3MovedPoints { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -138,6 +139,16 @@ public static class Tracer
         double smoothClamp = rampLines ? Math.Max(p.SmoothClamp, RampSmoothClamp) : p.SmoothClamp;
         int fittedChainNodes = 0, optimizedChainNodes = 0;
         int globalReducedChains = 0;
+        int localV3MovedPoints = 0;
+        if (options.LocalEdgeRefinementV3 &&
+            (!double.IsFinite(options.LocalEdgeMaxShiftV3) ||
+             options.LocalEdgeMaxShiftV3 < 0.05 || options.LocalEdgeMaxShiftV3 > 0.35 ||
+             !double.IsFinite(options.LocalEdgeMinGradientV3) ||
+             options.LocalEdgeMinGradientV3 < 0.20 || options.LocalEdgeMinGradientV3 > 0.80 ||
+             !double.IsFinite(options.LocalEdgeMinCandidateShiftV3) ||
+             options.LocalEdgeMinCandidateShiftV3 < 0.0 ||
+             options.LocalEdgeMinCandidateShiftV3 > options.LocalEdgeMaxShiftV3))
+            throw new ArgumentOutOfRangeException(nameof(options.LocalEdgeMaxShiftV3));
         Parallel.ForEach(graph.Chains, new ParallelOptions { CancellationToken = ct }, chain =>
         {
             if (options.CurveFitting)
@@ -170,6 +181,15 @@ public static class Tracer
                     // move each to the intersection of its refined flank lines instead
                     ChainGeometry.RelocateCorners(chain.Points, chain.Closed, corners,
                         p.CornerRelocateMaxShift, p.AngleSnapDeg);
+                }
+                if (options.LocalEdgeRefinementV3)
+                {
+                    int moved = LocalEdgeRefiner.Refine(chain.Points, chain.Closed,
+                        corners, edgeSamplingImage, ColorOf(chain.Left),
+                        ColorOf(chain.Right), options.LocalEdgeMaxShiftV3,
+                        options.LocalEdgeMinGradientV3,
+                        options.LocalEdgeMinCandidateShiftV3);
+                    System.Threading.Interlocked.Add(ref localV3MovedPoints, moved);
                 }
                 chain.Curve = BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);
                 System.Threading.Interlocked.Add(ref fittedChainNodes, chain.Curve.Count);
@@ -257,6 +277,7 @@ public static class Tracer
             FittedChainNodes = fittedChainNodes,
             OptimizedChainNodes = optimizedChainNodes,
             GlobalReducedChains = globalReducedChains,
+            LocalEdgeV3MovedPoints = localV3MovedPoints,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
