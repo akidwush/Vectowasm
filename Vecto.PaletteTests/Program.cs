@@ -751,3 +751,133 @@ Check(Rasterizer.Render(transparentWithGuard.Document, supersample: 1)
         .GetPixel(20, 20).A == 0 &&
       transparentWithGuard.Diagnostics.RegionMergeV1VerifiedContours >= 2,
     "Topology guard validates contour sides while preserving genuine transparent holes");
+
+
+// Priority 3: stacked-shape reasoning is opt-in and must preserve true layered
+// visibility, rather than simply converting the entire palette into one path.
+Check(!new TraceOptions().StackedLayerReasoningV1,
+    "Stacked layer reasoning stays OFF in the production defaults");
+
+// A large pale background covers all pixels, with four disjoint red/blue
+// motifs. They should remain independent semantic shapes but share a smaller
+// number of same-paint compound <path> layers when no occlusion conflicts.
+var layeredFixture = new RasterImage(112, 72);
+var paper = new Rgba32(252, 252, 252, 255);
+var vermilion = new Rgba32(228, 80, 35, 255);
+var cobalt = new Rgba32(16, 68, 150, 255);
+var charcoal = new Rgba32(18, 18, 20, 255);
+for (int y = 0; y < layeredFixture.Height; y++)
+for (int x = 0; x < layeredFixture.Width; x++)
+{
+    var color = paper;
+    if (y >= 14 && y < 31 &&
+        ((x >= 8 && x < 23) || (x >= 30 && x < 45) ||
+         (x >= 52 && x < 67) || (x >= 74 && x < 89)))
+        color = vermilion;
+    if (y >= 40 && y < 57 && x >= 30 && x < 45)
+        color = cobalt;
+    if (y >= 19 && y < 23 && x >= 11 && x < 15)
+        color = charcoal; // deliberate dark detail over first orange shape
+    layeredFixture.SetPixel(x, y, color);
+}
+TraceOptions LayerOptions(bool experimental) => new()
+{
+    ShapeMode = ShapeMode.Stacked,
+    Style = ImageStyle.Crisp,
+    Detail = DetailLevel.High,
+    CurveFitting = false,
+    PolygonEpsilon = 0,
+    StackedLayerReasoningV1 = experimental
+};
+var layerBaseline = Tracer.Trace(layeredFixture, LayerOptions(false));
+var layerReasoned = Tracer.Trace(layeredFixture, LayerOptions(true));
+Check(layerReasoned.Diagnostics.StackedLayers.BaselinePaths ==
+      layerBaseline.Document.Regions.Count &&
+      layerReasoned.Diagnostics.StackedLayers.CandidatePaths <=
+      layerReasoned.Diagnostics.StackedLayers.BaselinePaths &&
+      layerReasoned.Diagnostics.StackedLayers.OcclusionDependencies > 0,
+    "Layer reasoning measures a real stacked dependency graph and compacted candidate");
+Check(!layerReasoned.Diagnostics.StackedLayers.Reverted &&
+      layerReasoned.Diagnostics.StackedLayers.PathsSaved >= 2 &&
+      layerReasoned.Document.Regions.Count <
+      layerBaseline.Document.Regions.Count &&
+      layerReasoned.Diagnostics.StackedLayers.PixelMismatches == 0,
+    "Occlusion-safe stacked path grouping reduces paths without raster mismatch");
+Check(Rasterizer.Render(layerBaseline.Document, supersample: 1).Pixels
+      .SequenceEqual(Rasterizer.Render(layerReasoned.Document, supersample: 1).Pixels) &&
+      Rasterizer.Render(layerBaseline.Document, supersample: 2).Pixels
+      .SequenceEqual(Rasterizer.Render(layerReasoned.Document, supersample: 2).Pixels),
+    "Packed stacked paths keep pixel-identical 1x and 2x RGBA output");
+Check(!SvgWriter.Write(layerReasoned.Document).Contains("<g ") &&
+      SvgWriter.Write(layerReasoned.Document).Split("<path ",
+          StringSplitOptions.None).Length - 1 == layerReasoned.Document.Regions.Count,
+    "Layer reasoning emits direct editable SVG compound paths without groups");
+var layerReasonedAgain = Tracer.Trace(layeredFixture, LayerOptions(true));
+Check(SvgWriter.Write(layerReasonedAgain.Document) ==
+      SvgWriter.Write(layerReasoned.Document) &&
+      layerReasonedAgain.Diagnostics.StackedLayers ==
+      layerReasoned.Diagnostics.StackedLayers,
+    "Stacked layer scheduling and verification are deterministic");
+
+// Feature OFF means byte-for-byte equivalence to the original Stacked route.
+Check(SvgWriter.Write(layerBaseline.Document) ==
+      SvgWriter.Write(Tracer.Trace(layeredFixture, new TraceOptions
+      {
+          ShapeMode = ShapeMode.Stacked,
+          Style = ImageStyle.Crisp,
+          Detail = DetailLevel.High,
+          CurveFitting = false,
+          PolygonEpsilon = 0
+      }).Document),
+    "Default stacked output remains exactly unchanged");
+
+// A stacked-logic flag on Planar must never re-order or collapse planar paths.
+var planarWithFlag = Tracer.Trace(layeredFixture, new TraceOptions
+{
+    ShapeMode = ShapeMode.Planar,
+    Style = ImageStyle.Crisp,
+    Detail = DetailLevel.High,
+    CurveFitting = false,
+    PolygonEpsilon = 0,
+    StackedLayerReasoningV1 = true
+});
+var planarWithoutFlag = Tracer.Trace(layeredFixture, new TraceOptions
+{
+    ShapeMode = ShapeMode.Planar,
+    Style = ImageStyle.Crisp,
+    Detail = DetailLevel.High,
+    CurveFitting = false,
+    PolygonEpsilon = 0
+});
+Check(SvgWriter.Write(planarWithFlag.Document) ==
+      SvgWriter.Write(planarWithoutFlag.Document) &&
+      planarWithFlag.Diagnostics.StackedLayers.BaselinePaths == 0,
+    "Planar mode ignores experimental stacked-only layer reasoning");
+
+// Transparency and corner-junction regression with advanced Stacked opt-in.
+var seeThroughLayers = Tracer.Trace(transparentRing, new TraceOptions
+{
+    Style = ImageStyle.Crisp,
+    ShapeMode = ShapeMode.Stacked,
+    Detail = DetailLevel.High,
+    CurveFitting = false, PolygonEpsilon = 0,
+    StackedLayerReasoningV1 = true
+});
+Check(Rasterizer.Render(seeThroughLayers.Document, supersample: 1)
+        .GetPixel(20, 20).A == 0 &&
+      Rasterizer.Render(seeThroughLayers.Document, supersample: 2).Pixels
+        .SequenceEqual(Rasterizer.Render(transparentStack.Document,
+            supersample: 2).Pixels),
+    "Layer packing preserves intentional transparent holes and cutouts");
+var fourWayLayered = Tracer.Trace(fourWayImage, new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    Detail = DetailLevel.High, CurveFitting = false, PolygonEpsilon = 0,
+    RegionMergeV1 = true, StackedLayerReasoningV1 = true
+});
+Check(Rasterizer.Render(fourWayLayered.Document, supersample: 1).Pixels
+        .SequenceEqual(Rasterizer.Render(fourWayStacked.Document,
+            supersample: 1).Pixels) &&
+      fourWayLayered.Diagnostics.RegionMergeV1VerifiedCracks ==
+      fourWayStacked.Diagnostics.RegionMergeV1VerifiedCracks,
+    "Region Merge V1 topology guard remains compatible with Stacked V1 layering");
