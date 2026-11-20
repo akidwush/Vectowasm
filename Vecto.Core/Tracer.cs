@@ -45,6 +45,8 @@ public sealed class TraceDiagnostics
     public int RegionMergeV1VerifiedCracks { get; init; }
     public int RegionMergeV1VerifiedContours { get; init; }
     public StackedLayerStats StackedLayers { get; init; }
+    public AntiAliasBandStats AntiAliasBands { get; init; }
+    public bool AntiAliasBandsSkipped { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
     public long BoundaryMs { get; init; }
@@ -131,6 +133,19 @@ public static class Tracer
                 p.MinRegionArea = noisyMin;
             }
         }
+        // A whole-band AA experiment follows the existing near-pixel fringe
+        // and palette passes. It targets only residual intermediate-color
+        // strips between two stable paints. Skip real texture and exact flat
+        // palettes where gradients or genuine colors should not be erased.
+        AntiAliasBandStats antiAliasBands = default;
+        bool aaSkipped = options.AntiAliasBandV1 && (p.Textured || p.ExactPalette);
+        if (options.AntiAliasBandV1 && !aaSkipped)
+        {
+            antiAliasBands = AntiAliasBandRefiner.Refine(img, labels, palette, ct);
+            if (antiAliasBands.PixelsReassigned > 0)
+                palette = CompactPalette(img, labels, palette.Count);
+        }
+
         // Run quality-gated region cleanup only after palette compaction and
         // JPEG-noise handling. Keep legacy output byte-for-byte unchanged by
         // default; never reassign transparency or alter large sharp regions.
@@ -312,6 +327,8 @@ public static class Tracer
             RegionMergeV1VerifiedCracks = topologyAudit.Cracks,
             RegionMergeV1VerifiedContours = topologyAudit.ClosedContours,
             StackedLayers = stackedLayerAudit,
+            AntiAliasBands = antiAliasBands,
+            AntiAliasBandsSkipped = aaSkipped,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
