@@ -82,8 +82,8 @@ jobs:
               assert token in studio_css, "Studio color missing: " + token
               assert token in css, "Documentation theme drifts from Studio color: " + token
           import re
-          assert re.search(r"\\.topbar\\s*\\{\\s*background:#245c9b;\\s*border-bottom:3px solid #174678;", css)
-          assert re.search(r"\\.brand-initial\\s*\\{[^}]*color:#194775;background:#f0b657;border:1px solid #f8d795;", css)
+          assert re.search(r"\.topbar\s*\{\s*background:#245c9b;\s*border-bottom:3px solid #174678;", css)
+          assert re.search(r"\.brand-initial\s*\{[^}]*color:#194775;background:#f0b657;border:1px solid #f8d795;", css)
           assert "font-family:Tahoma" in css
           assert "width:35px;height:35px" in css
           assert "background:#e8edf3;" in css
