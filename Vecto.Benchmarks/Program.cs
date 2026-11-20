@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -24,16 +24,16 @@ internal static class BenchmarkRunner
     {
         if (args.Contains("--self-test"))
         {
-            var original = DemoFixture();
-            var perfect = FidelityMetrics.Compare(original, original);
+            var fixture = DemoFixture();
+            var perfect = FidelityMetrics.Compare(fixture, fixture);
             if (perfect.MaskIou != 1 || Math.Abs(perfect.BlockSsim - 1) > 1e-12 ||
                 perfect.BoundaryP99 != 0 || perfect.BoundaryHausdorff != 0 ||
                 perfect.RgbMae != 0)
                 throw new InvalidOperationException("Identity metrics must have IoU=SSIM=1, and zero distances");
-            var altered = new RasterImage(original.Width, original.Height,
-                (byte[])original.Pixels.Clone());
+            var altered = new RasterImage(fixture.Width, fixture.Height,
+                (byte[])fixture.Pixels.Clone());
             altered.SetPixel(5, 40, new Rgba32(0, 0, 0, 255));
-            var mismatch = FidelityMetrics.Compare(original, altered);
+            var mismatch = FidelityMetrics.Compare(fixture, altered);
             if (mismatch.MaskIou is null || mismatch.MaskIou >= 1 ||
                 mismatch.BoundaryHausdorff is null || mismatch.BoundaryHausdorff <= 0)
                 throw new InvalidOperationException("Changed silhouette must reduce IoU and increase boundary distance");
