@@ -70,7 +70,7 @@
         <li><span class="step-icon">02</span><div><h3>Tentukan susunan bentuk</h3><p>Pilih <strong>Berdampingan (Planar)</strong> untuk region yang berbagi batas, atau <strong>Bertumpuk (Stacked)</strong> untuk gambar dengan bentuk/lapisan saling menutupi, seperti logo maskot.</p></div></li>
         <li><span class="step-icon">03</span><div><h3>Atur jenis gambar dan detail</h3><p>Mulailah dengan <strong>Jenis gambar: Otomatis</strong> dan <strong>Detail: Sedang</strong>. Untuk ilustrasi antialias yang rumit, coba <strong>Ilustrasi halus + Tinggi</strong>.</p></div></li>
         <li><span class="step-icon">04</span><div><h3>Buat SVG</h3><p>Tekan <strong>Buat SVG</strong>. DikaTrace akan menyiapkan piksel, mengelompokkan warna, membangun region dan batas, memasang kurva, lalu menghasilkan dokumen SVG.</p></div></li>
-        <li><span class="step-icon">05</span><div><h3>Periksa hasil dan metadata</h3><p>Gunakan tombol <strong>Asli</strong>, <strong>SVG</strong>, dan <strong>Bandingkan</strong> untuk menilai hasil. Zoom bagian sulit: sudut, teks kecil, mata, garis tipis, serta warna penting. Buka panel metadata untuk melihat jumlah path dan segmen.</p></div></li>
+        <li><span class="step-icon">05</span><div><h3>Periksa hasil dan metadata</h3><p>Gunakan tombol <strong>Asli</strong>, <strong>SVG</strong>, dan <strong>Bandingkan</strong>. Dalam mode Bandingkan, seret pembatas <strong>Before / After</strong> pada gambar: sisi kiri raster asli, sisi kanan SVG. Geser gambar untuk pan, cubit dua jari di HP atau putar roda mouse untuk zoom hingga <strong>1000×</strong> dari ukuran pas pratinjau. Tombol 1000×, +/−, Reset, dan slider zoom juga tersedia. Buka panel metadata untuk melihat jumlah path dan segmen.</p></div></li>
         <li><span class="step-icon">06</span><div><h3>Unduh dan edit</h3><p>Tekan <strong>Unduh SVG</strong>. File dapat dibuka di aplikasi editor yang mendukung SVG. Jika unduhan tidak berjalan di browser tertentu, gunakan opsi <strong>buka SVG</strong> lalu simpan dari browser.</p></div></li>
       </ol>
       <div class="note"><strong>Tip:</strong> simpan satu hasil dengan semua fitur eksperimen OFF sebagai baseline. Ini berguna saat membandingkan hasil optimasi baru.</div>
@@ -158,7 +158,7 @@
         <div><strong>Ukuran & ViewBox</strong><span>Ukuran byte serta sistem koordinat SVG.</span></div>
         <div><strong>Waktu tracing</strong><span>Durasi tahap palet, segmentasi, batas, fitting.</span></div>
       </div>
-      <p>Mode A/B Original vs V3 dapat memperlihatkan <strong>MAE RGB, IoU mask gelap, dan SSIM luminans lokal 8×8</strong> pada pratinjau berukuran terbatas. SSIM tersebut bukan perhitungan Gaussian SSIM standar. IoU mask hitam-putih juga tidak dapat menjelaskan semua perbedaan ilustrasi berwarna.</p>
+      <p>Mode A/B Original vs V3 menggunakan pembatas Before / After yang sama untuk membandingkan dua SVG pada posisi dan zoom identik. Zoom hingga 1000× memakai transformasi tampilan tanpa mengulang tracing, tetapi ketajaman raster asli tetap dibatasi resolusi sumber. Mode A/B juga memperlihatkan <strong>MAE RGB, IoU mask gelap, dan SSIM luminans lokal 8×8</strong> pada pratinjau berukuran terbatas. SSIM tersebut bukan perhitungan Gaussian SSIM standar. IoU mask hitam-putih juga tidak dapat menjelaskan semua perbedaan ilustrasi berwarna.</p>
     </section>
 
     <section id="tips" class="doc-section" data-section>

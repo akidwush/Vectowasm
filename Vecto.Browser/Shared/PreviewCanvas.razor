@@ -1,0 +1,116 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime Js
+@implements IAsyncDisposable
+
+<div class="preview-widget" @ref="root" data-comparison="@(IsComparison ? "true" : "false")">
+    <div class="canvas-stage preview-stage">
+        @if (!string.IsNullOrWhiteSpace(BeforeUrl))
+        {
+            <div class="preview-viewport" data-preview-viewport tabindex="0"
+                 role="group" aria-label="Pratinjau interaktif. Geser gambar untuk pan; cubit untuk zoom. Geser pembatas untuk Before dan After.">
+                <div class="preview-layer preview-before">
+                    <img src="@BeforeUrl" alt="@BeforeDescription" draggable="false" />
+                </div>
+                @if (IsComparison)
+                {
+                    <div class="preview-layer preview-reveal" aria-hidden="true">
+                        <img src="@AfterUrl" alt="" draggable="false" />
+                    </div>
+                    <div class="preview-divider" data-preview-divider aria-hidden="true">
+                        <div class="preview-divider-line"></div>
+                    </div>
+                    <div class="preview-divider-handle" data-preview-handle
+                         role="slider" tabindex="0" aria-label="Batas Before dan After"
+                         aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+                         aria-valuetext="50 persen gambar sebelum dan 50 persen sesudah">↔</div>
+                    <span class="preview-tag preview-tag-before">@BeforeLabel</span>
+                    <span class="preview-tag preview-tag-after">@AfterLabel</span>
+                }
+                else
+                {
+                    <span class="preview-tag preview-tag-single">@BeforeLabel</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="empty-preview">Belum ada gambar. Pilih file di bawah.</div>
+        }
+    </div>
+    <div class="workspace-bottom preview-bottom">
+        <div class="zoom-controls" role="group" aria-label="Zoom dan posisi pratinjau">
+            <button type="button" data-preview-zoom-out disabled="@(BeforeUrl is null)" aria-label="Perkecil zoom">−</button>
+            <button type="button" data-preview-reset disabled="@(BeforeUrl is null)" aria-label="Atur ulang zoom dan posisi">1× · Pas</button>
+            <button type="button" data-preview-zoom-in disabled="@(BeforeUrl is null)" aria-label="Perbesar zoom">+</button>
+            <button type="button" class="zoom-max" data-preview-max disabled="@(BeforeUrl is null)" aria-label="Zoom hingga seribu kali">1000×</button>
+        </div>
+        <label class="zoom-slider-label">
+            <span>Zoom</span>
+            <input type="range" min="0" max="1000" value="0" step="1"
+                   data-preview-zoom-range disabled="@(BeforeUrl is null)"
+                   aria-label="Zoom dari 1 hingga 1000 kali" />
+        </label>
+        <div class="workspace-hint">@Filename</div>
+    </div>
+    @if (IsComparison)
+    {
+        <div class="preview-split-controls">
+            <label for="before-after-split">Before <span class="preview-split-percent" data-preview-split-label>50%</span> / After</label>
+            <input id="before-after-split" type="range" min="0" max="100" value="50"
+                   data-preview-split-range aria-label="Geser pembatas sebelum dan sesudah" />
+        </div>
+    }
+    <p class="preview-tip">Geser garis ↔ untuk Before/After · Cubit dua jari atau gunakan roda mouse untuk zoom · Geser gambar untuk melihat detail · Maksimum 1000×. Raster asli tetap terbatas pada resolusi pikselnya.</p>
+</div>
+
+@code {
+    [Parameter] public string? InputUrl { get; set; }
+    [Parameter] public string? SvgUrl { get; set; }
+    [Parameter] public string? AlternateSvgUrl { get; set; }
+    [Parameter] public string Mode { get; set; } = "original";
+    [Parameter] public string Filename { get; set; } = "";
+
+    private ElementReference root;
+    private bool attached;
+
+    private bool IsComparison => Mode == "ab"
+        ? !string.IsNullOrEmpty(AlternateSvgUrl) && !string.IsNullOrEmpty(SvgUrl)
+        : Mode == "compare" && !string.IsNullOrEmpty(InputUrl) && !string.IsNullOrEmpty(SvgUrl);
+    private string? BeforeUrl => Mode switch {
+        "ab" when IsComparison => AlternateSvgUrl,
+        "vector" when !string.IsNullOrEmpty(SvgUrl) => SvgUrl,
+        _ => InputUrl
+    };
+    private string? AfterUrl => Mode switch {
+        "ab" or "compare" when IsComparison => SvgUrl,
+        "vector" => SvgUrl,
+        _ => InputUrl
+    };
+    private string BeforeLabel => Mode switch {
+        "ab" when IsComparison => "ORIGINAL ENGINE",
+        "vector" when !string.IsNullOrEmpty(SvgUrl) => "HASIL SVG",
+        "compare" when IsComparison => "BEFORE · ASLI",
+        _ => "GAMBAR ASLI"
+    };
+    private string AfterLabel => Mode == "ab" ? "AFTER · V3" : "AFTER · SVG";
+    private string BeforeDescription => Mode switch {
+        "ab" when IsComparison => "SVG Original Engine tanpa Local Edge V3",
+        "vector" => "Hasil SVG DikaTrace",
+        _ => "Gambar bitmap asli"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Idempotent mount: the native JS controller owns fast pointer/rAF
+        // updates and is not tied to slow Blazor WebAssembly re-renders.
+        await Js.InvokeVoidAsync("vectoPreview.mount", root);
+        attached = true;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!attached) return;
+        try { await Js.InvokeVoidAsync("vectoPreview.dispose", root); }
+        catch (JSDisconnectedException) { }
+    }
+}

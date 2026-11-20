@@ -1,0 +1,64 @@
+name: Before/After 1000x preview quality gate
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Browser/Shared/PreviewCanvas.razor'
+      - 'Vecto.Browser/Pages/Index.razor'
+      - 'Vecto.Browser/wwwroot/js/vecto-preview.js'
+      - 'Vecto.Browser/wwwroot/js/tests/preview.test.mjs'
+      - 'Vecto.Browser/wwwroot/css/app.css'
+      - 'Vecto.Browser/wwwroot/index.html'
+      - '.github/workflows/before-after-preview-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static JS parse and pointer/zoom math tests
+        run: |
+          node --check Vecto.Browser/wwwroot/js/vecto-preview.js
+          node --test Vecto.Browser/wwwroot/js/tests/preview.test.mjs
+      - name: Ensure before-after, A/B V3, fallback, and download wiring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          comp = Path("Vecto.Browser/Shared/PreviewCanvas.razor").read_text()
+          ui = Path("Vecto.Browser/Pages/Index.razor").read_text()
+          style = Path("Vecto.Browser/wwwroot/css/app.css").read_text()
+          js = Path("Vecto.Browser/wwwroot/js/vecto-preview.js").read_text()
+          index = Path("Vecto.Browser/wwwroot/index.html").read_text()
+          assert 'data-preview-viewport' in comp
+          assert 'data-preview-handle' in comp
+          assert 'data-preview-zoom-range' in comp
+          assert 'data-preview-split-range' in comp
+          assert 'role="slider"' in comp
+          assert 'IsComparison' in comp and 'AlternateSvgUrl' in comp
+          assert 'vectoPreview.mount' in comp and 'vectoPreview.dispose' in comp
+          assert '<PreviewCanvas @key="previewSession"' in ui
+          assert 'previewSession++;' in ui
+          assert 'previewMode = compare ? "ab" : "compare"' in ui
+          assert 'previewZoom' not in ui and 'compare-stage' not in ui
+          assert 'download="@primaryDownloadName"' in ui
+          assert 'download="@alternateDownloadName"' in ui
+          assert 'vecto.measureSvgPair' in ui
+          assert 'SvgMetadataPanel' in ui
+          assert 'clip-path:inset(0 0 0 var(--preview-split))' in style
+          assert 'touch-action:none' in style
+          assert 'transform:translate3d(var(--preview-pan-x),var(--preview-pan-y),0) scale(var(--preview-zoom))' in style
+          assert 'onPointerDown' in js and 'onPointerMove' in js and 'onWheel' in js
+          assert 'const MAX_ZOOM = 1000' in js
+          assert 'vecto-preview.js?v=before-after-22' in index
+          print('PASS: single synchronized preview, Before/After split, zoom and old download/metadata/A-B routes')
+          PY
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish DikaTrace Blazor WebAssembly
+        run: |
+          dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+          test -s publish/wwwroot/js/vecto-preview.js
+          test -s publish/wwwroot/css/app.css
