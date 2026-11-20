@@ -48,6 +48,10 @@ public sealed class TraceOptions
     public double LocalEdgeMinGradientV3 { get; set; } = 0.25;
     /// <summary>V3 confidence filter: do not move vertices for negligible coverage residual.</summary>
     public double LocalEdgeMinCandidateShiftV3 { get; set; } = 0.012;
+    /// <summary>Experiment only. Source-aware merging of tiny colour-fringe regions before extracting boundaries.</summary>
+    public bool RegionMergeV1 { get; set; } = false;
+    /// <summary>Maximum area of a region eligible for guarded merge; 1..128.</summary>
+    public int RegionMergeMaxAreaV1 { get; set; } = 24;
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>
     public double PolygonEpsilon { get; set; } = -1;
     public int Seed { get; set; } = 1;
