@@ -471,3 +471,59 @@ Check(countForward == countBackward &&
 Check(LocalEdgeRefiner.Refine(Horizontal(), false, Array.Empty<int>(),
     localSource, null, new Rgba32(5, 5, 5, 255), .20) == 0,
     "V3 preserves real transparent-side boundaries");
+
+
+// SVG output metadata must describe the exact path instructions that SvgWriter emits.
+var statsDoc = new VectorDocument
+{
+    Width = 20,
+    Height = 10,
+    ShapeMode = ShapeMode.Planar,
+    Palette = new List<PaletteEntry>
+    {
+        new() { Color = black, PixelCount = 99 }
+    },
+    Regions = new List<RegionPath>
+    {
+        new()
+        {
+            PaletteIndex = 0,
+            Area = 99,
+            Loops = new List<List<CubicBezier>>
+            {
+                new()
+                {
+                    CubicBezier.Line(new Vec2(1, 1), new Vec2(10, 1)),
+                    new CubicBezier(new Vec2(10, 1), new Vec2(10, 4),
+                        new Vec2(1, 7), new Vec2(1, 1))
+                }
+            }
+        }
+    }
+};
+var statsSvg = SvgWriter.Write(statsDoc);
+var outputStats = SvgOutputStatistics.Analyze(statsDoc, statsSvg);
+Check(outputStats.Width == 20 && outputStats.Height == 10 &&
+    outputStats.ViewBox == "0 0 20 10" && outputStats.PathCount == 1 &&
+    outputStats.SubpathCount == 1 && outputStats.TotalSegments == 2 &&
+    outputStats.LineCommands == 1 && outputStats.CubicCommands == 1 &&
+    outputStats.EmittedAnchors == 2 && outputStats.CubicControlPoints == 2,
+    "SVG statistics count actual emitted paths, subpaths, lines and curves");
+Check(outputStats.Colors.Count == 1 &&
+    outputStats.Colors[0].Hex == "#0c0b0a" &&
+    outputStats.Colors[0].RegionPaths == 1 &&
+    outputStats.Colors[0].PalettePixelCount == 99 &&
+    outputStats.FileBytes == System.Text.Encoding.UTF8.GetByteCount(statsSvg) &&
+    outputStats.ApproximateOutlineLength > 18,
+    "SVG stats preserve color, UTF-8 file size and approximate curve length");
+var emptyDoc = new VectorDocument
+{
+    Width = 1, Height = 1,
+    Palette = new List<PaletteEntry>(),
+    Regions = new List<RegionPath>()
+};
+var emptyStats = SvgOutputStatistics.Analyze(emptyDoc, SvgWriter.Write(emptyDoc));
+Check(emptyStats.PathCount == 0 && emptyStats.SubpathCount == 0 &&
+    emptyStats.TotalSegments == 0 && emptyStats.MinSegmentsPerPath == 0 &&
+    emptyStats.AverageSegmentsPerPath == 0 && emptyStats.Colors.Count == 0,
+    "Empty SVG metadata does not divide by zero or invent paths");
