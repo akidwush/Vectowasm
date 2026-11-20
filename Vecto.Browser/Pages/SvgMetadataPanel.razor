@@ -46,6 +46,13 @@
             <div><dt>Detail</dt><dd>@Options.Detail</dd></div>
             <div><dt>Palet</dt><dd>Otomatis (batas @Options.MaxColors.ToString("N0"))</dd></div>
             <div><dt>Jumlah warna digunakan</dt><dd>@Stats.Colors.Count.ToString("N0")</dd></div>
+            <div><dt>Accent Ink V1</dt><dd>@(Options.AccentInkV1 ? "ON (eksperimen)" : "OFF")</dd></div>
+            @if (Options.AccentInkV1)
+            {
+                <div><dt>Calon warna aksen solid</dt><dd>@Diagnostics.AccentInk.QualifiedHueBins.ToString("N0")</dd></div>
+                <div><dt>Warna aksen tambahan</dt><dd>@Diagnostics.AccentInk.AddedCenters.ToString("N0")</dd></div>
+                <div><dt>Sampel core berwarna</dt><dd>@Diagnostics.AccentInk.SampledSolidCorePixels.ToString("N0")</dd></div>
+            }
             <div><dt>Seed</dt><dd>@Options.Seed</dd></div>
             <div><dt>Curve fitting</dt><dd>@(Options.CurveFitting ? "Aktif" : "Nonaktif")</dd></div>
             <div><dt>Pengurangan node</dt><dd>@(Options.CurveFitting && Options.OptimizeNodes ? Options.BezierMode.ToString() : "Nonaktif")</dd></div>
