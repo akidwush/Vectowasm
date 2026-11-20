@@ -1009,3 +1009,43 @@ var aaDisabledExplicit = Tracer.Trace(layeredFixture, new TraceOptions
 Check(SvgWriter.Write(aaDisabled.Document) ==
       SvgWriter.Write(aaDisabledExplicit.Document),
     "Explicit AA OFF yields byte-identical baseline for complex layered fixture");
+
+
+// Regression for source-backed green inks missing from an undersized automatic
+// palette. Distinct teal leaves must not be painted as yellow/white merely
+// because the six-color estimate capped the global K-means centers.
+var underfitAccent = Tracer.Trace(accent, new TraceOptions
+{
+    PaletteMode = PaletteMode.Auto, MaxColors = 2,
+    Style = ImageStyle.Blended, Detail = DetailLevel.High,
+    ShapeMode = ShapeMode.Stacked, CurveFitting = false, PolygonEpsilon = 0
+});
+var missingChromatic = AutoPaletteInkGuard.FindMissing(accent, underfitAccent);
+Check(missingChromatic.HasValue &&
+      missingChromatic.Value.CoreSamples >= 14,
+    "Small but real solid green accent triggers the source color coverage guard");
+var restoredAccent = Tracer.Trace(accent, new TraceOptions
+{
+    PaletteMode = PaletteMode.Auto, MaxColors = 3,
+    Style = ImageStyle.Blended, Detail = DetailLevel.High,
+    ShapeMode = ShapeMode.Stacked, CurveFitting = false, PolygonEpsilon = 0
+});
+Check(missingChromatic.HasValue &&
+      AutoPaletteInkGuard.IsImprovement(accent, underfitAccent,
+        restoredAccent, missingChromatic.Value),
+    "Quality gate accepts a real additional green ink when it reduces global pixel color loss");
+Check(AutoPaletteInkGuard.FindMissing(accent, restoredAccent) is null,
+    "Source green no longer reports missing after accepted three-ink trace");
+
+var accentSpeckles = Bands(black, white);
+for (int y = 12; y < 108; y += 13)
+    for (int x = 48; x < 184; x += 17)
+        accentSpeckles.SetPixel(x, y, green);
+var noisyAccentTrace = Tracer.Trace(accentSpeckles, new TraceOptions
+{
+    PaletteMode = PaletteMode.Auto, MaxColors = 2,
+    Style = ImageStyle.Blended, Detail = DetailLevel.High,
+    ShapeMode = ShapeMode.Planar, CurveFitting = false, PolygonEpsilon = 0
+});
+Check(AutoPaletteInkGuard.FindMissing(accentSpeckles, noisyAccentTrace) is null,
+    "Isolated one-pixel green JPEG speckles cannot force extra palette slots");

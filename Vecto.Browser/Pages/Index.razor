@@ -52,7 +52,13 @@
                 <div class="panel-body">
                     <div class="detected-color">
                         <span>Jumlah warna</span>
-                        <strong>@(autoEstimate is { } estimate ? $"{estimate.EstimatedInkCount} (otomatis)" : "Otomatis")</strong>
+                        <strong>@(autoEstimate is { } estimate
+                            ? manualColorLimit > 0
+                                ? $"{estimate.EstimatedInkCount} terdeteksi · {manualColorLimit} dipilih"
+                                : protectedColorLimit is { } limit && limit > estimate.RecommendedMaxColors
+                                    ? $"{estimate.EstimatedInkCount} terdeteksi · {limit} dijaga"
+                                    : $"{estimate.EstimatedInkCount} (otomatis)"
+                            : "Otomatis")</strong>
                     </div>
                     <div class="setting-grid">
                         <label>Susunan bentuk
@@ -67,6 +73,16 @@
                                 <option value="Crisp">Ilustrasi tajam</option>
                                 <option value="Blended">Ilustrasi halus</option>
                                 <option value="Photo">Foto</option>
+                            </select>
+                        </label>
+                        <label>Batas warna SVG
+                            <select @bind="manualColorLimit" disabled="@(running || loadingFile)">
+                                <option value="0">Otomatis (jaga warna aksen)</option>
+                                <option value="8">8 warna</option>
+                                <option value="12">12 warna</option>
+                                <option value="16">16 warna</option>
+                                <option value="24">24 warna</option>
+                                <option value="32">32 warna</option>
                             </select>
                         </label>
                         <label>Detail
@@ -251,6 +267,8 @@
     private ShapeMode shapeMode = ShapeMode.Planar;
     private DetailLevel detail = DetailLevel.Medium;
     private AutoPaletteEstimate? autoEstimate;
+    private int? protectedColorLimit;
+    private int manualColorLimit; // 0 = preserve automatic; 8..32 = user override
     private int seed = 1;
     private bool regionMergeV1;
     private bool antiAliasBandV1;
@@ -272,6 +290,7 @@
         svgText = null;
         ResetAbStats();
         autoEstimate = null;
+        protectedColorLimit = null;
         lastDiagnostics = "";
         inputHash = "";
         svgHash = "";
@@ -327,6 +346,7 @@
             previewMode = "original";
             previewSession++;
             autoEstimate = null;
+        protectedColorLimit = null;
             sourceBytes = null;
             preparedRaster = null;
             pixelCompression = null;
@@ -355,6 +375,7 @@
             pixelCompression = prepared.Applied ? prepared : null;
             sourceBytes = bytes;
             autoEstimate = paletteEstimate;
+            protectedColorLimit = null;
             sourceSize = $"{raster.Width} × {raster.Height} · {file.Size / 1024.0:N0} KB";
             status = prepared.Applied
                 ? $"Gambar siap. {prepared.ChangedPixels:N0} piksel dibersihkan; {paletteEstimate.EstimatedInkCount} warna terdeteksi."
@@ -432,23 +453,47 @@
         await Task.Yield();
         try
         {
-            // A/B must share the SAME prepared image, auto palette estimate and every other option.
+            // A/B must use identical inputs, colors and all other options.
             var image = preparedRaster ?? await RasterDecoder.DecodeAsync(sourceBytes, Js);
-            int colors = (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors;
+            int colors = manualColorLimit == 0
+                ? (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors
+                : manualColorLimit;
             bool compare = engineMode == "Compare";
             bool useV3 = engineMode != "Original";
-            TraceResult? originalTrace = null;
-            string? originalSvg = null;
-            TraceOptions? originalOptions = null;
-            if (compare)
+
+            // Protect source-backed rare solid inks before accepting an SVG.
+            // If a six-color palette swallows real teal/green/red accents,
+            // retry at most two extra palette slots. Preserve the old trace
+            // unless source color coverage and overall error both improve.
+            var baselineOptions = BuildOptions(colors, compare ? false : useV3);
+            TraceResult selected = Tracer.Trace(image, baselineOptions);
+            int originalBudget = colors;
+            if (manualColorLimit == 0 && style != ImageStyle.Photo &&
+                !selected.Diagnostics.Params.Textured && colors < 64)
             {
-                originalOptions = BuildOptions(colors, false);
-                originalTrace = Tracer.Trace(image, originalOptions);
-                originalSvg = SvgWriter.Write(originalTrace.Document);
+                var missing = AutoPaletteInkGuard.FindMissing(image, selected);
+                if (missing is { } ink)
+                {
+                    for (int extra = 1; extra <= 2 && originalBudget + extra <= 64; extra++)
+                    {
+                        int proposed = originalBudget + extra;
+                        TraceResult candidate = Tracer.Trace(image,
+                            BuildOptions(proposed, compare ? false : useV3));
+                        if (!AutoPaletteInkGuard.IsImprovement(image, selected, candidate, ink))
+                            continue;
+                        selected = candidate;
+                        colors = proposed;
+                        break;
+                    }
+                }
             }
 
+            protectedColorLimit = colors > originalBudget ? colors : null;
+            TraceResult? originalTrace = compare ? selected : null;
+            TraceOptions? originalOptions = compare ? BuildOptions(colors, false) : null;
+            string? originalSvg = compare ? SvgWriter.Write(selected.Document) : null;
             var traceOptions = BuildOptions(colors, useV3);
-            var traced = Tracer.Trace(image, traceOptions);
+            var traced = compare ? Tracer.Trace(image, traceOptions) : selected;
             string result = SvgWriter.Write(traced.Document);
 
             // Do not revoke old preview URLs until replacement SVGs exist.
@@ -494,7 +539,10 @@
             string v3Info = useV3
                 ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
                 : " · Engine Original";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{aaInfo}{stackedInfo}";
+            string inkInfo = protectedColorLimit is { } cap
+                ? $" · Warna aksen terjaga (batas palet {originalBudget} → {cap})"
+                : "";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{inkInfo}{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{aaInfo}{stackedInfo}";
 
             if (compare && originalTrace is not null && originalSvg is not null && originalOptions is not null)
             {
