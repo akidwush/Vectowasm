@@ -527,3 +527,114 @@ Check(emptyStats.PathCount == 0 && emptyStats.SubpathCount == 0 &&
     emptyStats.TotalSegments == 0 && emptyStats.MinSegmentsPerPath == 0 &&
     emptyStats.AverageSegmentsPerPath == 0 && emptyStats.Colors.Count == 0,
     "Empty SVG metadata does not divide by zero or invent paths");
+
+
+// Region Merge V1: benchmark on an intentionally fragmented but softly coloured
+// component. This option must not affect the production trace unless enabled.
+Check(!new TraceOptions().RegionMergeV1,
+    "Source-aware region merge remains opt-in / disabled by default");
+var softImage = new RasterImage(64, 64);
+for (int y = 0; y < 64; y++)
+    for (int x = 0; x < 64; x++)
+        softImage.SetPixel(x, y, new Rgba32(108, 108, 108, 255));
+var softLabels = new int[64 * 64]; // background label 0
+for (int y = 30; y < 32; y++)
+    for (int x = 30; x < 32; x++)
+        softLabels[y * 64 + x] = 1; // mislabeled patch, source still background
+var softPalette = new List<PaletteEntry>
+{
+    new() { Color = new Rgba32(108, 108, 108, 255), PixelCount = 4092 },
+    new() { Color = new Rgba32(118, 118, 118, 255), PixelCount = 4 }
+};
+var softCopy = (int[])softLabels.Clone();
+var mergedSoft = RegionMergeRefiner.Refine(softImage, softLabels, softPalette);
+Check(mergedSoft.RegionsBefore == 2 && mergedSoft.RegionsAfter == 1
+      && mergedSoft.MergedRegions == 1 && mergedSoft.RelabeledPixels == 4
+      && softLabels.All(label => label == 0),
+    "Opt-in region merge absorbs source-supported fragmented 2x2 region");
+var softAgain = RegionMergeRefiner.Refine(softImage, softCopy, softPalette);
+Check(softAgain == mergedSoft && softCopy.SequenceEqual(softLabels),
+    "Region merge deterministic across identical inputs");
+
+var eye = new RasterImage(64, 64);
+var eyeLabels = new int[64 * 64];
+for (int y = 0; y < 64; y++)
+    for (int x = 0; x < 64; x++)
+        eye.SetPixel(x, y, new Rgba32(255, 255, 255, 255));
+for (int y = 30; y < 32; y++)
+    for (int x = 30; x < 32; x++)
+    {
+        eye.SetPixel(x, y, new Rgba32(250, 214, 15, 255));
+        eyeLabels[y * 64 + x] = 1;
+    }
+var eyePalette = new List<PaletteEntry>
+{
+    new() { Color = new Rgba32(255, 255, 255, 255), PixelCount = 4092 },
+    new() { Color = new Rgba32(250, 214, 15, 255), PixelCount = 4 }
+};
+var eyeBefore = (int[])eyeLabels.Clone();
+var eyeStats = RegionMergeRefiner.Refine(eye, eyeLabels, eyePalette);
+Check(eyeStats.RelabeledPixels == 0 && eyeLabels.SequenceEqual(eyeBefore),
+    "Source-supported tiny yellow eye detail survives region merge");
+
+var stroke = new RasterImage(64, 64);
+var strokeLabels = new int[64 * 64];
+for (int y = 0; y < 64; y++)
+    for (int x = 0; x < 64; x++)
+        stroke.SetPixel(x, y, new Rgba32(150, 150, 150, 255));
+for (int x = 28; x < 38; x++)
+{
+    stroke.SetPixel(x, 28, new Rgba32(140, 140, 140, 255));
+    strokeLabels[28 * 64 + x] = 1;
+}
+var strokePalette = new List<PaletteEntry>
+{
+    new() { Color = new Rgba32(150, 150, 150, 255), PixelCount = 4086 },
+    new() { Color = new Rgba32(140, 140, 140, 255), PixelCount = 10 }
+};
+var strokeBefore = (int[])strokeLabels.Clone();
+var strokeStats = RegionMergeRefiner.Refine(stroke, strokeLabels, strokePalette);
+Check(strokeStats.RelabeledPixels == 0 && strokeLabels.SequenceEqual(strokeBefore),
+    "Long thin intentional gray stroke is protected from region merge");
+
+var semiVoid = new RasterImage(64, 64);
+var semiLabels = new int[64 * 64];
+Array.Fill(semiLabels, -1);
+for (int y = 10; y < 32; y++)
+    for (int x = 10; x < 32; x++)
+    {
+        semiVoid.SetPixel(x, y, new Rgba32(108, 108, 108, 255));
+        semiLabels[y * 64 + x] = 0;
+    }
+for (int y = 32; y < 34; y++)
+    for (int x = 20; x < 22; x++)
+    {
+        semiVoid.SetPixel(x, y, new Rgba32(108, 108, 108, 255));
+        semiLabels[y * 64 + x] = 1;
+    }
+var semiBefore = (int[])semiLabels.Clone();
+var transparencyStats = RegionMergeRefiner.Refine(semiVoid, semiLabels, softPalette);
+Check(transparencyStats.RelabeledPixels == 0 && semiLabels.SequenceEqual(semiBefore)
+      && semiLabels.Count(l => l == -1) == semiBefore.Count(l => l == -1),
+    "Region merge preserves alpha-adjacent islands and transparent holes");
+
+var defaultsForMerge = Tracer.Trace(StackedFixture(), StackingOptions(ShapeMode.Stacked));
+var explicitMergeOff = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    CurveFitting = false, PolygonEpsilon = 0,
+    RegionMergeV1 = false
+});
+Check(SvgWriter.Write(defaultsForMerge.Document) ==
+      SvgWriter.Write(explicitMergeOff.Document),
+    "Opt-in region merge keeps existing stacked SVG byte-identical by default");
+var mergeFixture = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    CurveFitting = false, PolygonEpsilon = 0,
+    RegionMergeV1 = true
+});
+Check(Rasterizer.Render(defaultsForMerge.Document, 1).Pixels.SequenceEqual(
+        Rasterizer.Render(mergeFixture.Document, 1).Pixels) &&
+    mergeFixture.Diagnostics.RegionMergeV1ChangedPixels == 0,
+    "Deliberate sharp nested logo stays raster-identical with merge opt-in");
