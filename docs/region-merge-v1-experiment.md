@@ -72,3 +72,35 @@ Synthetic CI checks cover same-color disjoint shapes with foreground details, a 
 This stage performs **paint-layer ordering and shape-path packing**, not reconstruction of the original artwork's intended object identities or invisible back geometry. A compound path may be selected as one object in editors, reducing independent component editability even if it reduces paths. The full-resolution tiger JPEG has NOT yet been re-traced by this new branch; synthetic correctness does not establish that this improves source fidelity or matches Vector Magic.
 
 **Branch policy:** PR #18 stays Draft, main unchanged, every new feature OFF by default. Require tiger A/B and multiple real input cases before any merge decision.
+
+
+## Priority 4 — Anti-alias Aware Segmentation V1 (same draft PR)
+
+**OFF by default**; independent of Region Merge V1, Local Edge V3 and Stacked Layer Reasoning V1. New optional checkbox in Advanced settings; safely skipped for `p.ExactPalette` or `p.Textured`.
+
+### Failure mechanism addressed
+The existing 3×3 `Segmenter.RelabelFringe` detects near-edge RGB blends, but a two-or-more-pixel-wide intermediate-color palette band can have an interior that sees only its own label. Standard minimum-region absorption can then leave long color slivers even though the intermediate color is a resampling/JPEG fringe.
+
+### Conservative whole-component treatment
+- Find 4-connected palette components at least 8 pixels long and at most 8,192 pixels in area. A thinness estimate `2 × area / perimeter ≤ 3` rejects broad gradients.
+- Only consider components wholly inside the opaque image which touch **exactly two distinct, stable neighboring components**; each neighbor must have at least twice the candidate area and >=1/6 its boundary support. Never cross transparency, image boundaries, or an additional third-color component.
+- Check the middle palette's Oklab projection onto the segment between the two anchor colors; reject if it lies off the segment. Each *source pixel* must largely match a gamma-sRGB two-color blend, with at least 90% of the band supported and mixing fractions spanning >=0.22.
+- Protect a real flat midtone/shading color: if >=25% of the pixels form a reliable color core near their own palette, retain the component. Uniform 1-pixel strokes are inherently ambiguous and rejected.
+- Reassign the complete AA band in one atomic pass using each pixel's source RGB mixing fraction. No pixels are changed in the source bitmap, only segmentation labels. Combined relabeling budget <=2% of image pixels.
+- Recompute 4-connected region count. Each accepted band must disappear as exactly **one component**. Unexpected bridges/holes -> revert the **entire pass** to previous labels.
+- Refresh compact palette only if any band was accepted. The subsequent quality-gated Region Merge V1 and shared-edge extraction remain unchanged. Existing Stacked layer reasoning can process these same final labels.
+- The browser's full metadata shows regions before/after, tested/protected/removed bands, changed label pixels and if the experiment was skipped or rolled back.
+
+### New regression fixtures
+1. A 44px-long two-pixel antialias ramp with source gray values on both sides of the midpoint must collapse the extra third-color band and keep the two original pigments.
+2. Uniform, deliberate mid-gray stripes must remain distinct from A/B.
+3. Broad 7px gradients must never be flattened.
+4. An AA band touching real transparency must be protected.
+5. Uniform single-pixel strokes are ambiguous and must not be inferred as fringe.
+6. Same source/setting must generate deterministic output.
+7. Crisp exact-palette artwork and explicitly disabled feature retain byte-identical baseline Stacked SVG output.
+
+### Limits and release gate
+All this is an **experimental heuristic**, not a promise of fewer path segments or higher source fidelity. The older fringe pass is still applied first; this stage handles residual *wide-enough* connecting AA bands only. It intentionally rejects uncertain cases. A pass over synthetic fixtures does not prove improvement on the tiger image. For a real-world gate, re-trace the **original tiger JPG** with matched palette, style, detail, V3 and Stacked settings, AA OFF/ON. Render both at source resolution, inspect thin markings, eye highlights and teeth, compare source MAE/SSIM and path/segment counts, and ensure no altered gradients or lost real color regions.
+
+**NO MERGE / NO DEFAULT ENABLE** until user reviews these real-image benchmarks and any failure cases.
