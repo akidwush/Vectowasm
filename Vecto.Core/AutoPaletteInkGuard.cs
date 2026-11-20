@@ -45,8 +45,11 @@ public static class AutoPaletteInkGuard
                 // Require a solid interior, not a single anti-alias fringe,
                 // one-pixel colored noise, or a JPEG ringing edge.
                 bool flat = true;
-                foreach (int j in new[] { i - 4, i + 4, i - w * 4, i + w * 4 })
+                for (int k = 0; k < 4; k++)
                 {
+                    int j = k switch {
+                        0 => i - 4, 1 => i + 4, 2 => i - w * 4, _ => i + w * 4
+                    };
                     if (px[j + 3] < 250 ||
                         Math.Abs(px[j] - r) > CoreNeighborTolerance ||
                         Math.Abs(px[j + 1] - g) > CoreNeighborTolerance ||
