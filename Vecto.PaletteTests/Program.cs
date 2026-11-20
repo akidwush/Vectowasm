@@ -1085,3 +1085,18 @@ var explicitInkOff = Tracer.Trace(layeredFixture, new TraceOptions
 Check(SvgWriter.Write(noInkOption.Document) ==
       SvgWriter.Write(explicitInkOff.Document),
     "Existing output stays byte-identical when chromatic rescue is OFF");
+
+
+// A darker brown with almost the same Oklab hue as existing tiger brown is
+// not a new *pigment*: its lightness alone must not steal an accent palette slot.
+var sameHueBrownFixture = new RasterImage(128, 128);
+var darkBrownAccent = new Rgba32(112, 49, 19, 255);
+for (int y = 0; y < 128; y++)
+for (int x = 0; x < 128; x++)
+    sameHueBrownFixture.SetPixel(x, y,
+        x >= 38 && x < 58 && y >= 38 && y < 58
+            ? darkBrownAccent : tigerBrown);
+var sameHueGuard = AccentInkPaletteV1.Expand(sameHueBrownFixture,
+    new[] { brownLab }, 4);
+Check(sameHueGuard.Stats.AddedCenters == 0,
+    "Darkness variation with already-represented brown hue does not become new accent paint");
