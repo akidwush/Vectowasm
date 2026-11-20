@@ -22,6 +22,25 @@ internal static class BenchmarkRunner
 
     private static int Execute(string[] args)
     {
+        if (args.Contains("--self-test"))
+        {
+            var original = DemoFixture();
+            var perfect = FidelityMetrics.Compare(original, original);
+            if (perfect.MaskIou != 1 || Math.Abs(perfect.BlockSsim - 1) > 1e-12 ||
+                perfect.BoundaryP99 != 0 || perfect.BoundaryHausdorff != 0 ||
+                perfect.RgbMae != 0)
+                throw new InvalidOperationException("Identity metrics must have IoU=SSIM=1, and zero distances");
+            var altered = new RasterImage(original.Width, original.Height,
+                (byte[])original.Pixels.Clone());
+            altered.SetPixel(5, 40, new Rgba32(0, 0, 0, 255));
+            var mismatch = FidelityMetrics.Compare(original, altered);
+            if (mismatch.MaskIou is null || mismatch.MaskIou >= 1 ||
+                mismatch.BoundaryHausdorff is null || mismatch.BoundaryHausdorff <= 0)
+                throw new InvalidOperationException("Changed silhouette must reduce IoU and increase boundary distance");
+            Console.WriteLine("PASS benchmark metrics: identity and shifted-foreground control");
+            return 0;
+        }
+
         if (args.Length == 0 || args.Contains("--help"))
         {
             Console.WriteLine("DikaTrace four-mode benchmark");
