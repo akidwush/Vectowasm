@@ -33,7 +33,20 @@ jobs:
           assert 'MaxPaletteDistanceSquared' in refiner
           assert 'if (r == neighbor || !eligible[r]' in refiner
           assert 'labels[i] = toLabel[r]' in refiner
-          print('PASS opt-in, source evidence, no global merge by default')
+          stacked = Path('Vecto.Core/StackedShapeBuilder.cs').read_text()
+          layering = Path('Vecto.Core/StackedLayerReasoner.cs').read_text()
+          metadata = Path('Vecto.Browser/Pages/SvgMetadataPanel.razor').read_text()
+          assert 'public bool StackedLayerReasoningV1 { get; set; } = false;' in options
+          assert 'options.StackedLayerReasoningV1' in tracer
+          assert 'StackedLayerReasoner.Schedule' in stacked
+          assert 'StackedLayerReasoner.CombineConsecutive' in stacked
+          assert 'StackedLayerReasoner.VerifyOrRevert' in stacked
+          assert 'frontOf' in layering and 'indegree' in layering
+          assert 'Rasterizer.Render(baseline' in layering
+          assert 'mismatch > 0' in layering
+          assert 'StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked' in ui
+          assert 'Layer Reasoning V1' in metadata
+          print('PASS opt-in region and stacked layer reasoning, occlusion DAG and pixel fallback')
           PY
       - name: Run palette, topology and region merge regression tests
         run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
