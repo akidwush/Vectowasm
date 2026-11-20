@@ -38,6 +38,8 @@ public sealed class TraceOptions
     public BezierOptimizationMode BezierMode { get; set; } = BezierOptimizationMode.GlobalDp;
     /// <summary>Experimental edge-coverage isovalue; default 0.5 retains the production behavior.</summary>
     public double EdgeCoverageThreshold { get; set; } = 0.5;
+    /// <summary>Experimental: apply coverage offset only on smooth flanks, not near protected corners.</summary>
+    public bool LocalEdgeCurvatureGuard { get; set; } = false;
     /// <summary>Optional source RGBA for sub-pixel sampling only. Null uses tracing raster (production behavior).</summary>
     public RasterImage? EdgeReferenceImage { get; set; }
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>

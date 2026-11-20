@@ -1,7 +1,7 @@
-name: Experimental eagle subpixel edge placement A/B
+name: Experimental eagle local edge curvature A/B
 on:
   push:
-    branches: [experiment/subpixel-edge-placement-sweep]
+    branches: [experiment/subpixel-edge-placement-sweep, experiment/local-edge-curvature-v3]
   workflow_dispatch:
 permissions:
   contents: read

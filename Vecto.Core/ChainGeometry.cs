@@ -81,7 +81,7 @@ internal static class ChainGeometry
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static void SubpixelRefine(List<Vec2> pts, bool closed, IReadOnlyList<int> pinned,
         RasterImage img, Rgba32? left, Rgba32? right, double maxShift,
-        double targetCoverage = 0.5)
+        double targetCoverage = 0.5, bool curvatureGuard = false)
     {
         if (left == null && right == null) return;
         int n = closed ? pts.Count - 1 : pts.Count;
@@ -120,11 +120,32 @@ internal static class ChainGeometry
             double f0 = CoverLeft(p - normal);
             double f1 = CoverLeft(p);
             double f2 = CoverLeft(p + normal);
+            // Experimental local guard: preserve 50% coverage at high curvature and near
+            // structural corners; only smooth, well-supported flanks receive the A/B offset.
+            // Both adjacent regions reuse the same chain, so shared-edge topology is unchanged.
+            double localCoverage = targetCoverage;
+            if (curvatureGuard)
+            {
+                int ia = closed ? (i + n - 2) % n : Math.Max(0, i - 2);
+                int ib = closed ? (i + 2) % n : Math.Min(n - 1, i + 2);
+                var a = (p - pts[ia]).Normalized();
+                var b = (pts[ib] - p).Normalized();
+                double cosine = Math.Clamp(a.Dot(b), -1, 1);
+                double angle = Math.Acos(cosine) * (180.0 / Math.PI);
+                double weight = Math.Clamp((25.0 - angle) / 15.0, 0, 1);
+                for (int d = -3; d <= 3; d++)
+                {
+                    int j = i + d;
+                    if (closed) j = (j % n + n) % n;
+                    if (j >= 0 && j < n && pin[j]) { weight = 0; break; }
+                }
+                localCoverage = 0.5 + (targetCoverage - 0.5) * weight;
+            }
             double t;
-            if ((f0 - targetCoverage) * (f1 - targetCoverage) <= 0 && Math.Abs(f1 - f0) > 1e-9)
-                t = -1 + (targetCoverage - f0) / (f1 - f0);
-            else if ((f1 - targetCoverage) * (f2 - targetCoverage) <= 0 && Math.Abs(f2 - f1) > 1e-9)
-                t = (targetCoverage - f1) / (f2 - f1);
+            if ((f0 - localCoverage) * (f1 - localCoverage) <= 0 && Math.Abs(f1 - f0) > 1e-9)
+                t = -1 + (localCoverage - f0) / (f1 - f0);
+            else if ((f1 - localCoverage) * (f2 - localCoverage) <= 0 && Math.Abs(f2 - f1) > 1e-9)
+                t = (localCoverage - f1) / (f2 - f1);
             else
                 continue;
             if (double.IsNaN(t)) continue;
