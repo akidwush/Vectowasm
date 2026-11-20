@@ -86,11 +86,8 @@
         "vector" when !string.IsNullOrEmpty(SvgUrl) => SvgUrl,
         _ => InputUrl
     };
-    private string? AfterUrl => Mode switch {
-        "ab" or "compare" when IsComparison => SvgUrl,
-        "vector" => SvgUrl,
-        _ => InputUrl
-    };
+    // Single-image modes must not decode the same input twice.
+    private string? AfterUrl => IsComparison ? SvgUrl : null;
     private string BeforeLabel => Mode switch {
         "ab" when IsComparison => "ORIGINAL ENGINE",
         "vector" when !string.IsNullOrEmpty(SvgUrl) => "HASIL SVG",
