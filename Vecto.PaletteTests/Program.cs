@@ -881,3 +881,131 @@ Check(Rasterizer.Render(fourWayLayered.Document, supersample: 1).Pixels
       fourWayLayered.Diagnostics.RegionMergeV1VerifiedCracks ==
       fourWayStacked.Diagnostics.RegionMergeV1VerifiedCracks,
     "Region Merge V1 topology guard remains compatible with Stacked V1 layering");
+
+
+// Priority 4: whole-band AA-aware segmentation. A long, thin intermediate
+// color region should be removed only when source RGB proves a real ramp
+// between two stable neighboring inks.
+Check(!new TraceOptions().AntiAliasBandV1,
+    "Anti-alias band experiment defaults OFF and cannot change legacy SVGs");
+
+static (RasterImage Img, int[] Labels, List<PaletteEntry> Colors) AaBandFixture(
+    bool solidMid = false, int bandWidth = 2, bool transparentContact = false)
+{
+    const int w = 96, h = 64;
+    var img = new RasterImage(w, h);
+    var labels = new int[w * h];
+    var ink = new Rgba32(16, 16, 16, 255);
+    var paper = new Rgba32(240, 240, 240, 255);
+    var mid = new Rgba32(136, 136, 136, 255);
+    for (int y = 0; y < h; y++)
+    for (int x = 0; x < w; x++)
+        img.SetPixel(x, y, ink);
+    int from = 49 - bandWidth;
+    for (int y = 10; y < 54; y++)
+    for (int x = from; x < 78; x++)
+    {
+        if (x < 49)
+        {
+            // Contrast-gradient inside an otherwise monochrome intermediate
+            // palette region; the source is NOT a flat, deliberate third fill.
+            int r = bandWidth == 1 ? 128 : x == from ? 106 : 170;
+            byte v = (byte)(solidMid ? 136 : r);
+            img.SetPixel(x, y, new Rgba32(v, v, v, 255));
+            labels[y * w + x] = 2;
+        }
+        else
+        {
+            img.SetPixel(x, y, paper);
+            labels[y * w + x] = 1;
+        }
+    }
+    if (transparentContact)
+    {
+        // This creates an alpha boundary directly touching the AA candidate.
+        for (int y = 19; y < 34; y++)
+        {
+            img.SetPixel(from - 1, y, new Rgba32(0, 0, 0, 0));
+            labels[y * w + from - 1] = -1;
+        }
+    }
+    return (img, labels, new List<PaletteEntry>
+    {
+        new() { Color = ink, PixelCount = 5000 },
+        new() { Color = paper, PixelCount = 1200 },
+        new() { Color = mid, PixelCount = 88 }
+    });
+}
+
+var aaTransition = AaBandFixture();
+var aaInput = (int[])aaTransition.Labels.Clone();
+var aaScore = AntiAliasBandRefiner.Refine(
+    aaTransition.Img, aaTransition.Labels, aaTransition.Colors);
+Check(aaScore.RegionsBefore == 3 && aaScore.RegionsAfter == 2 &&
+    aaScore.BandsReassigned == 1 && aaScore.PixelsReassigned == 88 &&
+    !aaScore.RolledBack && aaTransition.Labels[25 * 96 + 47] == 0 &&
+    aaTransition.Labels[25 * 96 + 48] == 1,
+    "AA band relabels a two-pixel blended fringe to its two stable neighbors");
+Check(aaTransition.Labels.Count(l => l < 0) == aaInput.Count(l => l < 0),
+    "AA-aware band never changes transparency");
+
+var aaRepeat = AaBandFixture();
+Check(AntiAliasBandRefiner.Refine(
+      aaRepeat.Img, aaRepeat.Labels, aaRepeat.Colors) == aaScore &&
+      aaRepeat.Labels.SequenceEqual(aaTransition.Labels),
+    "AA-aware whole-band refinement remains deterministic");
+
+var realMid = AaBandFixture(solidMid: true);
+var midLabels = (int[])realMid.Labels.Clone();
+var midScore = AntiAliasBandRefiner.Refine(realMid.Img, realMid.Labels, realMid.Colors);
+Check(midScore.BandsReassigned == 0 &&
+    realMid.Labels.SequenceEqual(midLabels),
+    "True solid midtone stripe survives even when it lies between two colors");
+
+var gradientWide = AaBandFixture(bandWidth: 7);
+var wideLabels = (int[])gradientWide.Labels.Clone();
+var wideScore = AntiAliasBandRefiner.Refine(
+    gradientWide.Img, gradientWide.Labels, gradientWide.Colors);
+Check(wideScore.BandsReassigned == 0 &&
+      gradientWide.Labels.SequenceEqual(wideLabels),
+    "Broad 7px transition gradient is NOT collapsed into two flat colors");
+
+var alphaBand = AaBandFixture(transparentContact: true);
+var alphaLabels = (int[])alphaBand.Labels.Clone();
+var alphaScore = AntiAliasBandRefiner.Refine(
+    alphaBand.Img, alphaBand.Labels, alphaBand.Colors);
+Check(alphaScore.BandsReassigned == 0 &&
+      alphaBand.Labels.SequenceEqual(alphaLabels),
+    "Fringe touching real transparent pixels cannot be relabeled");
+
+var monoBand = AaBandFixture(bandWidth: 1);
+var monoLabels = (int[])monoBand.Labels.Clone();
+var monoScore = AntiAliasBandRefiner.Refine(
+    monoBand.Img, monoBand.Labels, monoBand.Colors);
+Check(monoScore.BandsReassigned == 0 &&
+      monoBand.Labels.SequenceEqual(monoLabels),
+    "Uniform one-pixel stroke remains intact when AA evidence is ambiguous");
+
+// An exact-paletted tiger-like sharp logo must be byte-identical by default,
+// even if more experimental options are introduced in subsequent stages.
+var sharpSafe = Tracer.Trace(StackedFixture(), new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    CurveFitting = false, PolygonEpsilon = 0,
+    AntiAliasBandV1 = true
+});
+Check(SvgWriter.Write(sharpSafe.Document) ==
+      SvgWriter.Write(stackedTrace.Document) &&
+      sharpSafe.Diagnostics.AntiAliasBandsSkipped,
+    "Exact crisp palettes skip AA experiment and preserve Stacked output");
+
+var aaDisabled = Tracer.Trace(layeredFixture, LayerOptions(false));
+var aaDisabledExplicit = Tracer.Trace(layeredFixture, new TraceOptions
+{
+    ShapeMode = ShapeMode.Stacked, Style = ImageStyle.Crisp,
+    Detail = DetailLevel.High, CurveFitting = false,
+    PolygonEpsilon = 0, AntiAliasBandV1 = false
+});
+Check(SvgWriter.Write(aaDisabled.Document) ==
+      SvgWriter.Write(aaDisabledExplicit.Document),
+    "Explicit AA OFF yields byte-identical baseline for complex layered fixture");
