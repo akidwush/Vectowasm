@@ -20,6 +20,9 @@ public static class AccentInkPaletteV1
     private const int TileSide = 24;
     private const double MinNoveltySq = 0.072 * 0.072;
     private const double MinIndependentSq = 0.055 * 0.055;
+    // A new accent must represent a genuinely different hue, not merely a
+    // darker/lighter shade of an existing orange or brown pigment.
+    private const double MinHueSeparationRad = 0.21; // about 12 degrees
 
     public static (Lab[] Colors, AccentInkStats Stats) Expand(
         RasterImage image, IReadOnlyList<Lab> centers, int maxColors,
@@ -106,6 +109,20 @@ public static class AccentInkPaletteV1
             foreach (var existing in centers)
                 minDistance = Math.Min(minDistance, Oklab.DistSq(color, existing));
             if (minDistance < MinNoveltySq) continue;
+            // Oklab chroma angle is more robust to luminance than the RGB
+            // distance. It suppresses redundant dark-orange/brown seeds
+            // that can otherwise outrank a tiny but genuinely yellow eye.
+            double hue = Math.Atan2(color.B, color.A);
+            double nearestHue = Math.PI;
+            foreach (var existing in centers)
+            {
+                double chromaSq = existing.A * existing.A + existing.B * existing.B;
+                if (chromaSq < 0.06 * 0.06) continue; // white, black or gray
+                double diff = Math.Abs(hue - Math.Atan2(existing.B, existing.A));
+                diff = Math.Min(diff, 2 * Math.PI - diff);
+                nearestHue = Math.Min(nearestHue, diff);
+            }
+            if (nearestHue < MinHueSeparationRad) continue;
             qualified++;
             // Both spatial support and color novelty are required. Prefer
             // distinct, demonstrably missing pigments over fringe-sized bins.
