@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DikaTrace Lab — Rust VTracer Quality Gate</title>
+  <meta name="theme-color" content="#235ca4">
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#17334b;background:#eff3f8}
+    *{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:0 auto;padding:16px}
+    header{background:#235ca4;color:white;padding:18px 16px}header>div{max-width:1120px;margin:auto}
+    h1{font-size:23px;margin:0 0 5px}h2{font-size:17px;margin:0 0 12px}h3{font-size:14px}
+    p,li{line-height:1.55}small,.muted{color:#5a6e80}header small{color:#dfebff}
+    .card{background:white;border:1px solid #c8d7e4;padding:16px;margin-bottom:14px;border-radius:5px}
+    .settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+    label{font-weight:600;display:flex;flex-direction:column;gap:7px;font-size:13px}
+    input[type=file],select{background:white;border:1px solid #91acc4;max-width:100%;padding:10px;font:inherit;font-size:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:15px}
+    button,a.action{border:1px solid #1f578c;background:#235ca4;color:white;padding:11px 14px;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;border-radius:3px}
+    button:disabled,a.disabled{opacity:.45;pointer-events:none;cursor:default}
+    button.secondary{color:#235ca4;background:white}.alert{border-left:4px solid #ad6a14;background:#fff8e9;padding:10px;font-size:12px}
+    .scroll{overflow:auto}table{border-collapse:collapse;width:100%;min-width:780px;text-align:left}
+    th,td{border-bottom:1px solid #d4dfea;padding:8px;font-size:12px;white-space:nowrap}
+    th{color:#3b5f7c;background:#edf3f9}tbody tr:first-child{background:#eaf7ee}
+    .previews{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+    .preview{border:1px solid #d6e1eb;padding:9px;min-width:0}
+    .preview img{display:block;width:100%;height:auto;aspect-ratio:1/1;object-fit:contain;background:white}
+    .preview strong{display:block;overflow-wrap:anywhere;font-size:12px;padding-top:7px}
+    .preview a{color:#235ca4;font-size:12px}#status{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+    #winner{font-weight:700;font-size:16px}footer{padding:10px 0;font-size:11px;color:#6b7e90}
+    @media(max-width:480px){main{padding:10px}.card{padding:12px}h1{font-size:19px}}
+  </style>
+</head>
+<body>
+<header><div><h1>DikaTrace · Hybrid Vector Quality Lab</h1>
+<small>Rust Covecto/VTracer vs DikaTracer vs Vector Magic · eksperimen lokal, bukan engine default</small></div></header>
+<main>
+  <section class="card">
+    <h2>1. Pilih sumber dan kandidat</h2>
+    <div class="settings">
+      <label>Gambar PNG/JPG asli (wajib)
+        <input type="file" id="input" accept="image/png,image/jpeg,image/webp" required>
+      </label>
+      <label>DikaTracer Baseline SVG (opsional)
+        <input type="file" id="baseline" accept=".svg,image/svg+xml">
+      </label>
+      <label>DikaTracer Eksperimen SVG (opsional)
+        <input type="file" id="experimental" accept=".svg,image/svg+xml">
+      </label>
+      <label>Vector Magic SVG (opsional)
+        <input type="file" id="reference" accept=".svg,image/svg+xml">
+      </label>
+      <label>Resolusi tracing Rust (sisi terpanjang)
+        <select id="maxSide">
+          <option value="512">512 px — cepat / HP</option>
+          <option value="768" selected>768 px — seimbang</option>
+          <option value="1024">1024 px — detail tinggi</option>
+        </select>
+      </label>
+      <label>Engine Rust
+        <select id="engine">
+          <option value="spline" selected>VTracer Spline (direkomendasikan untuk harimau)</option>
+          <option value="both">Spline + PixelExact (hanya ikon flat kecil)</option>
+        </select>
+      </label>
+    </div>
+    <p class="alert">File diproses di browser, bukan dikirim ke server. Jika input lebih besar dari resolusi pilihan, hanya hasil <strong>Rust</strong> yang ditracing pada resolusi tersebut; file DikaTracer/Vector Magic tidak diubah. Semua SVG dirender ulang pada ukuran evaluasi yang sama untuk perbandingan. PixelExact sengaja dibatasi untuk ikon kecil agar JPEG kompleks tidak menghasilkan puluhan ribu path.</p>
+    <div class="row">
+      <button id="start">Jalankan benchmark</button>
+      <button id="cancel" class="secondary" disabled>Batalkan</button>
+      <button id="export" class="secondary" disabled>Unduh laporan JSON</button>
+    </div>
+    <p id="status" role="status">Pilih input asli. Engine eksperimen belum aktif sampai benchmark dijalankan.</p>
+  </section>
+  <section class="card" id="output" hidden>
+    <h2>2. Hasil pengukuran</h2>
+    <p id="winner"></p>
+    <p class="muted">Penilaian: MAE warna + SSIM lokal 8×8 + error warna aksen kecil. Jika kualitas hampir seri, pilih SVG dengan perintah geometri lebih sedikit. IoU mengukur mask piksel gelap, bukan semua warna. Penghitungan segmen dari token command SVG bersifat perkiraan.</p>
+    <div class="scroll"><table id="metrics"><thead><tr>
+      <th>SVG</th><th>MAE ↓</th><th>SSIM lokal ↑</th><th>IoU gelap ↑</th>
+      <th>MAE aksen ↓</th><th>Path</th><th>Subpath</th><th>Command</th><th>Ukuran</th><th>Waktu</th><th>Nilai ↓</th>
+    </tr></thead><tbody></tbody></table></div>
+    <h3>Visual hasil SVG</h3><div class="previews" id="previews"></div>
+    <p class="alert">Menang pada skor ini ≠ pasti setara Vector Magic. Pastikan juga mata, gigi, bulu halus, dan bentuk layer benar saat diperbesar. Pada gambar dengan transparansi, metrik dibandingkan setelah dikomposit ke latar putih.</p>
+  </section>
+  <footer>Riset opt-in PR #19. Sumber Covecto MIT, VTracer upstream; binary Rust dibangun di GitHub Actions dari commit upstream yang dipin. Tidak ada API eksternal atau penyimpanan gambar.</footer>
+</main>
+<script type="module" src="./lab.mjs"></script>
+</body>
+</html>
