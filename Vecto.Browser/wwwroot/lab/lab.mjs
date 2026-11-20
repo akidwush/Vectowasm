@@ -66,17 +66,18 @@ function runRust(raster, engine, token) {
     const worker = new Worker("./covecto-worker.js");
     activeWorker = worker;
     const timeout = setTimeout(() => finish(new Error("Rust melebihi 120 detik; worker dihentikan.")), 120_000);
+    const cancelThis = err => finish(err);
     function finish(err, value) {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
       worker.terminate();
       if (activeWorker === worker) activeWorker = null;
-      if (activeReject === reject) activeReject = null;
+      if (activeReject === cancelThis) activeReject = null;
       if (err) reject(err);
       else resolve(value);
     }
-    activeReject = err => finish(err);
+    activeReject = cancelThis;
     worker.onmessage = ({ data }) => {
       if (!data || token !== currentToken) { finish(new Error("Proses dibatalkan.")); return; }
       if (data.type === "error") finish(new Error(data.message || "WASM error"));
