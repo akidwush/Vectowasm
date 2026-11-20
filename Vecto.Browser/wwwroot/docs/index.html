@@ -158,7 +158,7 @@
         <div><strong>Ukuran & ViewBox</strong><span>Ukuran byte serta sistem koordinat SVG.</span></div>
         <div><strong>Waktu tracing</strong><span>Durasi tahap palet, segmentasi, batas, fitting.</span></div>
       </div>
-      <p>Mode A/B Original vs V3 menggunakan pembatas Before / After yang sama untuk membandingkan dua SVG pada posisi dan zoom identik. Zoom hingga 1000× memakai transformasi tampilan tanpa mengulang tracing, tetapi ketajaman raster asli tetap dibatasi resolusi sumber. Mode A/B juga memperlihatkan <strong>MAE RGB, IoU mask gelap, dan SSIM luminans lokal 8×8</strong> pada pratinjau berukuran terbatas. SSIM tersebut bukan perhitungan Gaussian SSIM standar. IoU mask hitam-putih juga tidak dapat menjelaskan semua perbedaan ilustrasi berwarna.</p>
+      <p>Mode A/B Original vs V3 menggunakan pembatas Before / After yang sama untuk membandingkan dua SVG pada posisi dan zoom identik. Zoom hingga 1000× tidak mengulang engine tracing: SVG diperbesar melalui <code>viewBox</code> agar tetap tajam, sementara JPG/PNG digambar ulang hanya pada area pratinjau, bukan sebagai tekstur raksasa. Kamera dikunci pada batas gambar untuk menghindari area kosong saat digeser. Ketajaman JPG/PNG tetap dibatasi resolusi piksel asli dan performa bergantung pada kemampuan browser/perangkat. Mode A/B juga memperlihatkan <strong>MAE RGB, IoU mask gelap, dan SSIM luminans lokal 8×8</strong> pada pratinjau berukuran terbatas. SSIM tersebut bukan perhitungan Gaussian SSIM standar. IoU mask hitam-putih juga tidak dapat menjelaskan semua perbedaan ilustrasi berwarna.</p>
     </section>
 
     <section id="tips" class="doc-section" data-section>

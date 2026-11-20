@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Native SVG + raster zoom smoke</title>
+<link rel="stylesheet" href="../../css/app.css">
+<style>body{margin:0}#root{width:512px}#view{width:512px;height:384px}#root .preview-stage{height:384px}</style>
+</head>
+<body data-smoke="running">
+<div id="root" class="preview-widget" data-comparison="true">
+ <div class="preview-stage">
+  <div id="view" class="preview-viewport" data-preview-viewport tabindex="0">
+   <div class="preview-layer preview-before" data-preview-before>
+    <canvas data-preview-raster></canvas><div data-preview-vector class="preview-native-svg"></div>
+   </div>
+   <div class="preview-layer preview-reveal" data-preview-after>
+    <canvas data-preview-raster></canvas><div data-preview-vector class="preview-native-svg"></div>
+   </div>
+   <div class="preview-divider"><div class="preview-divider-line"></div></div>
+   <div class="preview-divider-handle" data-preview-handle role="slider" tabindex="0" aria-valuenow="50">↔</div>
+   <span data-preview-loading class="preview-loading" hidden>Loading</span>
+  </div>
+ </div>
+ <div class="workspace-bottom">
+  <button data-preview-zoom-out>-</button>
+  <button data-preview-reset>1× · Pas</button>
+  <button data-preview-zoom-in>+</button>
+  <button data-preview-max>1000×</button>
+  <input data-preview-zoom-range type="range" min="0" max="1000">
+ </div>
+ <span data-preview-split-label></span>
+ <input data-preview-split-range type="range" min="0" max="100" value="50">
+</div>
+<pre id="result">RUNNING</pre>
+<script src="../vecto-preview.js"></script>
+<script>
+(async function () {
+ const out = document.querySelector("#result");
+ function assert(ok, why) { if (!ok) throw new Error(why); }
+ function frame() { return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); }
+ function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+ async function loaded() {
+   for (let i=0;i<60;i++) {
+     if (document.querySelector("[data-preview-after] svg") &&
+         document.querySelector("[data-preview-loading]").hidden) return;
+     await sleep(40);
+   }
+   throw new Error("SVG/raster did not load");
+ }
+ try {
+   const image = document.createElement("canvas");
+   image.width=image.height=64;
+   const ctx=image.getContext("2d");
+   ctx.fillStyle="#e97d17";ctx.fillRect(0,0,64,64);
+   const png=image.toDataURL("image/png");
+   const svg='<'+'svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path fill="#186dd3" d="M0 0 H64 V64 H0 Z" /></svg>';
+   const svgURL="data:image/svg+xml;charset=UTF-8,"+encodeURIComponent(svg);
+   const root=document.getElementById("root");
+   window.vectoPreview.mount(root,png,svgURL,false,true);
+   await loaded();await frame();
+   const raster=root.querySelector("[data-preview-before] canvas");
+   const vector=root.querySelector("[data-preview-after] svg");
+   assert(raster.width<=2048&&raster.height<=1536,"Canvas exceeded viewport cap");
+   assert(vector.querySelectorAll("path").length===1,"SVG path lost in native viewBox");
+   assert(getComputedStyle(root.querySelector("[data-preview-after]")).clipPath.includes("50%"),
+      "Comparison right-half clip broken");
+   let vb=vector.getAttribute("viewBox").split(/\s+/).map(Number);
+   const fullWidth=vb[2];
+   const px=raster.getContext("2d").getImageData(
+      Math.round(raster.width/2),Math.round(raster.height/2),1,1).data;
+   assert(px[0]>180&&px[1]>60&&px[1]<180,"Raster center not painted");
+   root.querySelector("[data-preview-max]").click();
+   await frame();
+   vb=vector.getAttribute("viewBox").split(/\s+/).map(Number);
+   assert(vb[2]>0&&vb[2]<=fullWidth/999.9,"Native SVG did not zoom 1000x");
+   assert(raster.width<=2048&&raster.height<=1536,"Zoom allocated giant canvas");
+   for(let i=0;i<20;i++) {
+     root.querySelector("[data-preview-zoom-in]").click();
+     root.querySelector("[data-preview-zoom-out]").click();
+   }
+   // After repeated +/- clicks, explicitly return to 1000x. Fit-to-screen
+   // legitimately letterboxes a non-matching aspect ratio and should not
+   // be mistaken for the blank GPU tiles reported at high magnification.
+   root.querySelector("[data-preview-max]").click();
+   await frame();
+   const v=root.querySelector("[data-preview-viewport]");
+   v.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:31,pointerType:"touch",clientX:160,clientY:180,button:0}));
+   v.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,pointerId:31,pointerType:"touch",clientX:100000,clientY:-100000,button:0}));
+   v.dispatchEvent(new PointerEvent("pointerup",{bubbles:true,pointerId:31,pointerType:"touch",clientX:100000,clientY:-100000,button:0}));
+   await frame();
+   vb=vector.getAttribute("viewBox").split(/\s+/).map(Number);
+   assert(vb.every(Number.isFinite)&&vb[2]>0&&vb[3]>0,"Nonfinite/negative native SVG crop");
+   assert(vb[0]>=-1e-5&&vb[0]+vb[2]<=64+1e-5 &&
+          vb[1]>=-1e-5&&vb[1]+vb[3]<=64+1e-5,
+          "Pan escaped image bounds, would show a white blank");
+   assert(getComputedStyle(raster).transform==="none","Large compositor transform still active");
+   window.vectoPreview.dispose(root);
+   document.body.dataset.smoke="pass";
+   out.textContent="PASS: native SVG, bounded canvas, zoom1000, extreme pan & clipping";
+ } catch(e){
+   document.body.dataset.smoke="fail";
+   out.textContent="FAIL: "+String(e.stack||e);
+ }
+})();
+</script>
+</body></html>
