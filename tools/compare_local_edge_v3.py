@@ -31,6 +31,13 @@ for shape in ("planar", "stacked"):
             "delta_ssim_same_source": float(row["ssim"]) - float(baseline_same_source["ssim"]),
             "max_boundary_px": float(row["max_boundary_px"]),
             "baseline_max_boundary_px": float(baseline_same_source["max_boundary_px"]),
+            "p99_px": float(row["p99_px"]),
+            "baseline_p99_px": float(baseline_same_source["p99_px"]),
+            "missed": int(row["missed"]),
+            "added": int(row["added"]),
+            "delta_missed_same_source": int(row["missed"]) - int(baseline_same_source["missed"]),
+            "delta_added_same_source": int(row["added"]) - int(baseline_same_source["added"]),
+            "net_ink_bias": int(row["added"]) - int(row["missed"]),
             "total_segments": int(t["Total"]),
             "delta_segments_same_source": int(t["Total"]) - int(btrace_same_source["Total"]),
             "microL": int(t["MicroL"]),
@@ -65,6 +72,10 @@ for shape in ("planar", "stacked"):
               f"Δwrong {e['delta_wrong_same_source']:+d} "
               f"ΔSSIM {e['delta_ssim_same_source']:+.6f}, "
               f"Δseg {e['delta_segments_same_source']:+d}, "
-              f"max {e['max_boundary_px']:.2f}, moved {e['moved_vertices']}")
+              f"ΔmicroL {e['delta_microL_same_source']:+d}, "
+              f"Δadded {e['delta_added_same_source']:+d}, "
+              f"Δmissed {e['delta_missed_same_source']:+d}, "
+              f"P99 {e['p99_px']:.2f}, max {e['max_boundary_px']:.2f}, "
+              f"moved {e['moved_vertices']}")
 assert any(report[x]["candidates"] for x in report), "No V3 candidates were measured"
 Path(args.out).write_text(json.dumps(report, indent=2))
