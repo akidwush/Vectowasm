@@ -39,14 +39,16 @@ jobs:
           assert 'TraceOptions? originalOptions = compare ? BuildOptions(colors, false) : null;' in ui
           assert 'var traceOptions = BuildOptions(colors, useV3, useEkstrace);' in ui
           assert 'var traced = compare ? Tracer.Trace(image, traceOptions) : selected;' in ui
-          assert 'BuildOptions(colors, compare ? false : useV3, useEkstrace)' in ui
+          assert 'BuildOptions(colors, compare ? false : useV3, compare ? false : useEkstrace)' in ui
           assert 'AutoPaletteInkGuard.IsImprovement(image, selected, candidate, ink)' in ui
           assert 'manualColorLimit == 0' in ui
           assert '<option value="8">8 warna</option>' in ui
           assert '<option value="12">12 warna</option>' in ui
           assert 'protectedColorLimit = colors > originalBudget ? colors : null;' in ui
           assert 'bool useV3 = engineMode == "V3" || engineMode == "Compare";' in ui
-          assert 'bool useEkstrace = engineMode == "Ekstracev1";' in ui
+          assert 'bool useEkstrace = engineMode == "Ekstracev1" || engineMode == "CompareEkstrace";' in ui
+          assert 'bool compare = engineMode == "Compare" || engineMode == "CompareEkstrace";' in ui
+          assert '<option value="CompareEkstrace">' in ui
           assert 'ContourFittingEngine = enableEkstrace ? ContourFittingEngine.Ekstracev1 : ContourFittingEngine.Original' in ui
           assert '<option value="Ekstracev1">' in ui
           assert 'LocalEdgeRefinementV3 { get; set; } = false;' in opts
