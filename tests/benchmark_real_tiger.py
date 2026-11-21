@@ -43,7 +43,7 @@ def make_seam_mask(svg_path, scale):
         "width": str(N), "height": str(N), "viewBox": f"0 0 {N} {N}"
     })
     for path in root.iter(f"{{{NS}}}path"):
-        if path.get("data-seam-underpaint") == "1":
+        if path.get("data-seam") == "1":
             clone = copy.deepcopy(path)
             clone.tail = None  # strip serializer-external text between SVG paths
             clone.set("stroke", "#000000")
