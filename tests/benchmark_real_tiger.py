@@ -46,7 +46,8 @@ def make_seam_mask(svg_path, scale):
         if path.get("data-seam") == "1":
             clone = copy.deepcopy(path)
             clone.tail = None  # strip serializer-external text between SVG paths
-            clone.set("stroke", "#000000")
+            clone.set("fill", "none") # Restore inherited SVG-root fill
+clone.set("stroke", "#000000")
             clone.set("stroke-opacity", "1")
             out.append(clone)
     if len(out) == 0:
