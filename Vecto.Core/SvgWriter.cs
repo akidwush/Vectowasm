@@ -47,11 +47,11 @@ public static class SvgWriter
                       .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
-                      .Append("\" stroke-width=\"").Append(F(group.Key))
+                      .Append("\" stroke-width=\"").Append(Compact(group.Key))
                       .Append("\" stroke-linecap=\"butt\" stroke-linejoin=\"round\" d=\"");
                     foreach (var seam in group)
                         AppendUnderpaint(sb, seam.Curves);
-                    sb.Append("\" />\\n");
+                    sb.Append("\" />\n");
                 }
             }
         }
@@ -79,18 +79,20 @@ public static class SvgWriter
     private static void AppendUnderpaint(StringBuilder sb, IReadOnlyList<CubicBezier> curves)
     {
         var first = curves[0];
-        sb.Append(" M ").Append(F(first.P0.X)).Append(' ').Append(F(first.P0.Y));
+        sb.Append(" M ").Append(Compact(first.P0.X)).Append(' ').Append(Compact(first.P0.Y));
         foreach (var seg in curves)
         {
             if (seg.IsLine())
-                sb.Append(" L ").Append(F(seg.P3.X)).Append(' ').Append(F(seg.P3.Y));
+                sb.Append(" L ").Append(Compact(seg.P3.X)).Append(' ').Append(Compact(seg.P3.Y));
             else
-                sb.Append(" C ").Append(F(seg.P1.X)).Append(' ').Append(F(seg.P1.Y)).Append(' ')
-                  .Append(F(seg.P2.X)).Append(' ').Append(F(seg.P2.Y)).Append(' ')
-                  .Append(F(seg.P3.X)).Append(' ').Append(F(seg.P3.Y));
+                sb.Append(" C ").Append(Compact(seg.P1.X)).Append(' ').Append(Compact(seg.P1.Y)).Append(' ')
+                  .Append(Compact(seg.P2.X)).Append(' ').Append(Compact(seg.P2.Y)).Append(' ')
+                  .Append(Compact(seg.P3.X)).Append(' ').Append(Compact(seg.P3.Y));
         }
         // Intentionally NO Z: closing the auxiliary path would create a new seam.
     }
 
     static string F(double v) => v.ToString("0.00", CultureInfo.InvariantCulture);
+    // Equal 2-decimal precision; drop insignificant trailing zeroes ONLY for helper SVG data.
+    static string Compact(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
 }
