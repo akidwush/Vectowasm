@@ -48,7 +48,7 @@ File.WriteAllText(onPath, onSvg);
 
 var originalOnly = new Regex(@"<path [^>]*?/>", RegexOptions.Compiled | RegexOptions.Singleline);
 string[] OrigPaths(string svg) => originalOnly.Matches(svg).Select(m => m.Value)
-    .Where(p => !p.Contains("data-seam-underpaint", StringComparison.Ordinal)).ToArray();
+    .Where(p => !p.Contains("data-seam", StringComparison.Ordinal)).ToArray();
 string[] basePaths = OrigPaths(offSvg), protectedPaths = OrigPaths(onSvg);
 bool unchanged = basePaths.SequenceEqual(protectedPaths);
 int AllPaths(string svg) => originalOnly.Matches(svg).Count;
