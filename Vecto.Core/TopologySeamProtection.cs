@@ -102,20 +102,38 @@ internal static class TopologySeamProtection
                 if (!double.IsFinite(lengthUpper) || lengthUpper < .1)
                 { Flush(); continue; }
                 int subdivisions = Math.Clamp((int)Math.Ceiling(lengthUpper / 3), 1, MaxPiecesPerCurve);
+                int runStart = -1;
+                // Probe small slices independently for corner / thin-feature
+                // safety, but reconstruct one EXACT cubic for each consecutive
+                // safe interval. Exporting all little slices wastes nodes.
+                void AddRun(int begin, int finish)
+                {
+                    if (begin < 0 || finish <= begin) return;
+                    var piece = Slice(whole, begin / (double)subdivisions,
+                        finish / (double)subdivisions);
+                    if (run.Count > 0 &&
+                        (run[^1].P3.DistSq(piece.P0) > 1e-10 ||
+                         Tangent(run[^1], 1).Dot(Tangent(piece, 0)) < .96))
+                        Flush();
+                    run.Add(piece);
+                }
                 for (int i = 0; i < subdivisions; i++)
                 {
-                    double a = i / (double)subdivisions;
-                    double b = (i + 1) / (double)subdivisions;
-                    var sub = Slice(whole, a, b);
-                    if (!SafeSlice(sub, chain, segmentation, width, height))
-                    { Flush(); continue; }
-                    if (run.Count > 0 &&
-                        (run[^1].P3.DistSq(sub.P0) > 1e-12 ||
-                         Tangent(run[^1], 1).Dot(Tangent(sub, 0)) < .96))
+                    var sub = Slice(whole, i / (double)subdivisions,
+                        (i + 1) / (double)subdivisions);
+                    if (SafeSlice(sub, chain, segmentation, width, height))
+                    {
+                        if (runStart < 0) runStart = i;
+                        acceptedPieces++;
+                    }
+                    else
+                    {
+                        AddRun(runStart, i);
+                        runStart = -1;
                         Flush();
-                    run.Add(sub);
-                    acceptedPieces++;
+                    }
                 }
+                AddRun(runStart, subdivisions);
             }
             Flush();
             if (acceptedPieces > 0) safe++;
