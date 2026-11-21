@@ -99,9 +99,10 @@
                             <option value="Original">Original — stabil</option>
                             <option value="V3">Local Edge V3 — aktifkan</option>
                             <option value="Ekstracev1">Ekstracev1 — Bézier G1 (eksperimental)</option>
+                            <option value="CompareEkstrace">Bandingkan A/B — Original vs Ekstracev1</option>
                             <option value="Compare">Bandingkan A/B — Original vs V3</option>
                         </select>
-                        <p>Original tetap default. V3 mengoreksi posisi tepi; Ekstracev1 memakai fitting Bézier mandiri pada shared boundary yang sama. A/B khusus Original vs V3. Kualitas Ekstracev1 belum terbukti lebih unggul.</p>
+                        <p>Original tetap default. V3 mengoreksi posisi tepi; Ekstracev1 memakai fitting Bézier mandiri pada shared boundary yang sama. A/B tersedia untuk Original vs V3 maupun Original vs Ekstracev1. Perbedaan hasil tidak otomatis berarti kualitas lebih tinggi.</p>
                     </div>
                     <details class="advanced-options">
                         <summary>Pengaturan lanjutan</summary>
@@ -138,7 +139,7 @@
                         @if (!running && !loadingFile)
                         {
                             <div class="download-links">
-                                <a class="export-button" href="@svgUrl" download="@primaryDownloadName">@(alternateSvgUrl is null ? "Unduh SVG" : "Unduh Local Edge V3 SVG")</a>
+                                <a class="export-button" href="@svgUrl" download="@primaryDownloadName">@(alternateSvgUrl is null ? "Unduh SVG" : $"Unduh {primaryEngineName} SVG")</a>
                                 @if (alternateSvgUrl is not null)
                                 {
                                     <a class="export-button ab-secondary" href="@alternateSvgUrl" download="@alternateDownloadName">Unduh Original SVG</a>
@@ -149,10 +150,10 @@
                         @if (alternateSvgUrl is not null && baselineDiagnostics is not null && v3Diagnostics is not null)
                         {
                             <div class="ab-report">
-                                <strong>Hasil A/B — parameter sama</strong>
+                                <strong>Hasil A/B — input dan toleransi sama; optimizer pasca-fit dimatikan saat membandingkan dua fitter</strong>
                                 <div class="ab-table-scroll">
                                     <table>
-                                        <thead><tr><th>Metrik</th><th>Original</th><th>Local V3</th></tr></thead>
+                                        <thead><tr><th>Metrik</th><th>Original</th><th>@abEngineLabel</th></tr></thead>
                                         <tbody>
                                             <tr><td>Waktu tracing</td><td>@baselineDiagnostics.TotalMs ms</td><td>@v3Diagnostics.TotalMs ms</td></tr>
                                             <tr><td>Region</td><td>@baselineDiagnostics.RegionCount</td><td>@v3Diagnostics.RegionCount</td></tr>
@@ -161,7 +162,16 @@
                                             <tr><td>Segmen SVG</td><td>@originalSegments</td><td>@v3Segments</td></tr>
                                             <tr><td>Garis mikro (&lt;2 px)</td><td>@originalMicroLines</td><td>@v3MicroLines</td></tr>
                                             <tr><td>Ukuran SVG</td><td>@originalSvgBytes B</td><td>@v3SvgBytes B</td></tr>
-                                            <tr><td>Titik digeser V3</td><td>0</td><td>@v3Diagnostics.LocalEdgeV3MovedPoints</td></tr>
+                                            @if (abEngineLabel == "Local Edge V3")
+                                            {
+                                                <tr><td>Titik digeser V3</td><td>0</td><td>@v3Diagnostics.LocalEdgeV3MovedPoints</td></tr>
+                                            }
+                                            else
+                                            {
+                                                <tr><td>Kontur diproses Ekstrace</td><td>0</td><td>@v3Diagnostics.EkstraceV1Chains</td></tr>
+                                                <tr><td>Fallback ke Original</td><td>0</td><td>@v3Diagnostics.EkstraceV1OriginalFallbackChains</td></tr>
+                                                <tr><td>Kontur kurva Ekstrace</td><td>0</td><td>@v3Diagnostics.EkstraceV1CurvedChains</td></tr>
+                                            }
                                             @if (pixelAudit is not null)
                                             {
                                                 <tr><td>IoU mask</td><td>@($"{pixelAudit.Original.Iou * 100:F3}%")</td><td>@($"{pixelAudit.V3.Iou * 100:F3}%")</td></tr>
@@ -180,13 +190,14 @@
                                 {
                                     <p>Metrik raster tidak tersedia: @pixelAuditError. Dua SVG tetap bisa diperiksa dan diunduh.</p>
                                 }
+                                <p>Hash SVG Original: @alternateSvgHash · Hash SVG @abEngineLabel: @svgHash</p>
                                 @if (string.Equals(alternateSvgText, svgText, StringComparison.Ordinal))
                                 {
-                                    <p class="ab-warning">Kedua SVG identik. V3 tidak menghasilkan perubahan yang terlihat pada gambar ini.</p>
+                                    <p class="ab-warning">Kedua SVG identik byte-per-byte. Pada Ekstracev1 ini bisa terjadi jika kontur hanya garis lurus atau seluruh kontur fallback ke Original. Lihat jumlah fallback dan kontur kurva di tabel.</p>
                                 }
                                 else
                                 {
-                                    <p class="ab-different">Kedua SVG berbeda. Periksa bentuk tepi, ujung tajam, dan ukuran sebelum memutuskan V3 lebih baik.</p>
+                                    <p class="ab-different">Kedua SVG berbeda byte-per-byte. Periksa bentuk tepi, ujung tajam, dan fidelity gambar sebelum menilai mana yang lebih baik.</p>
                                 }
                             </div>
                         }
@@ -246,6 +257,7 @@
     private string primaryDownloadName = "dikatrace.svg";
     private string alternateDownloadName = "dikatrace-original.svg";
     private string primaryEngineName = "Original";
+    private string abEngineLabel = "Local Edge V3";
     private string alternateSvgHash = "";
     private TraceDiagnostics? baselineDiagnostics;
     private TraceDiagnostics? v3Diagnostics;
@@ -436,6 +448,7 @@
         primaryDownloadName = "dikatrace.svg";
         alternateDownloadName = "dikatrace-original.svg";
         primaryEngineName = "Original";
+        abEngineLabel = "Local Edge V3";
         alternateSvgHash = "";
         alternateSvgText = null;
         baselineDiagnostics = null;
@@ -460,15 +473,17 @@
             int colors = manualColorLimit == 0
                 ? (autoEstimate ?? AutoPaletteEstimator.Analyze(image)).RecommendedMaxColors
                 : manualColorLimit;
-            bool compare = engineMode == "Compare";
+            bool compare = engineMode == "Compare" || engineMode == "CompareEkstrace";
             bool useV3 = engineMode == "V3" || engineMode == "Compare";
-            bool useEkstrace = engineMode == "Ekstracev1";
+            bool useEkstrace = engineMode == "Ekstracev1" || engineMode == "CompareEkstrace";
 
             // Protect source-backed rare solid inks before accepting an SVG.
             // If a six-color palette swallows real teal/green/red accents,
             // retry at most two extra palette slots. Preserve the old trace
             // unless source color coverage and overall error both improve.
-            var baselineOptions = BuildOptions(colors, compare ? false : useV3, useEkstrace);
+            var baselineOptions = BuildOptions(colors, compare ? false : useV3, compare ? false : useEkstrace);
+            // A/B of the two fitters: disable Vecto post-fit optimizer on both sides.
+            if (engineMode == "CompareEkstrace") baselineOptions.OptimizeNodes = false;
             TraceResult selected = Tracer.Trace(image, baselineOptions);
             int originalBudget = colors;
             if (manualColorLimit == 0 && style != ImageStyle.Photo &&
@@ -480,8 +495,9 @@
                     for (int extra = 1; extra <= 2 && originalBudget + extra <= 64; extra++)
                     {
                         int proposed = originalBudget + extra;
-                        TraceResult candidate = Tracer.Trace(image,
-                            BuildOptions(proposed, compare ? false : useV3, useEkstrace));
+                        var candidateOptions = BuildOptions(proposed, compare ? false : useV3, compare ? false : useEkstrace);
+                        if (engineMode == "CompareEkstrace") candidateOptions.OptimizeNodes = false;
+                        TraceResult candidate = Tracer.Trace(image, candidateOptions);
                         if (!AutoPaletteInkGuard.IsImprovement(image, selected, candidate, ink))
                             continue;
                         selected = candidate;
@@ -494,6 +510,8 @@
             protectedColorLimit = colors > originalBudget ? colors : null;
             TraceResult? originalTrace = compare ? selected : null;
             TraceOptions? originalOptions = compare ? BuildOptions(colors, false) : null;
+            if (engineMode == "CompareEkstrace" && originalOptions is not null)
+                originalOptions.OptimizeNodes = false;
             string? originalSvg = compare ? SvgWriter.Write(selected.Document) : null;
             var traceOptions = BuildOptions(colors, useV3, useEkstrace);
             var traced = compare ? Tracer.Trace(image, traceOptions) : selected;
@@ -503,6 +521,7 @@
             await ClearUrl(false);
             await ClearAlternateUrl();
             ResetAbStats();
+            abEngineLabel = useEkstrace ? "Ekstracev1" : "Local Edge V3";
             primaryStatistics = SvgOutputStatistics.Analyze(traced.Document, result);
             primaryDiagnostics = traced.Diagnostics;
             primaryTraceOptions = traceOptions;
@@ -540,7 +559,7 @@
                     : $" · Stacked Layer V1: -{traced.Diagnostics.StackedLayers.PathsSaved:N0} path / {traced.Diagnostics.StackedLayers.ComparedPixels:N0} piksel diverifikasi"
                 : "";
             string v3Info = useEkstrace
-                ? " · Engine Ekstracev1: chord/refined G1 · reducer Vecto dilewati"
+                ? $" · Ekstracev1 {traced.Diagnostics.EkstraceV1Chains - traced.Diagnostics.EkstraceV1OriginalFallbackChains}/{traced.Diagnostics.EkstraceV1Chains} kontur lewat fitter; fallback Original {traced.Diagnostics.EkstraceV1OriginalFallbackChains}; kontur kurva {traced.Diagnostics.EkstraceV1CurvedChains}"
                 : useV3
                     ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
                     : " · Engine Original";
@@ -582,10 +601,12 @@
 
             previewSession++;
             status = compare
-                ? "A/B selesai. Kedua SVG dibuat dengan setting identik; lihat tabel dan pratinjau A/B V3."
-                : useV3
-                    ? $"Local Edge V3 selesai: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser."
-                    : "SVG Original selesai dibuat.";
+                ? $"A/B {primaryEngineName} vs Original selesai; lihat perbedaan hash dan bentuk di bawah."
+                : useEkstrace
+                    ? $"Ekstracev1 selesai: {traced.Diagnostics.EkstraceV1Chains - traced.Diagnostics.EkstraceV1OriginalFallbackChains} kontur oleh Ekstrace, {traced.Diagnostics.EkstraceV1OriginalFallbackChains} fallback Original."
+                    : useV3
+                        ? $"Local Edge V3 selesai: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser."
+                        : "SVG Original selesai dibuat.";
         }
         catch (Exception ex)
         {

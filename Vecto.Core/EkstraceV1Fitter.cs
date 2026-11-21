@@ -19,20 +19,27 @@ public static class EkstraceV1Fitter
     private const double Epsilon = 1e-12;
 
     public static List<CubicBezier> FitChain(List<Vec2> points, bool closed,
-        List<int> protectedCorners, double toleranceSquared, CancellationToken cancellation = default)
+        List<int> protectedCorners, double toleranceSquared, CancellationToken cancellation = default) =>
+        FitChain(points, closed, protectedCorners, toleranceSquared, out _, cancellation);
+
+    /// <summary>True when Ekstrace delegates this chain to the original Vecto fitter.</summary>
+    public static List<CubicBezier> FitChain(List<Vec2> points, bool closed,
+        List<int> protectedCorners, double toleranceSquared,
+        out bool usedOriginalFallback, CancellationToken cancellation = default)
     {
+        usedOriginalFallback = false;
         if (points.Count < 2) return new List<CubicBezier>();
         if (!double.IsFinite(toleranceSquared) || toleranceSquared <= 0)
             throw new ArgumentOutOfRangeException(nameof(toleranceSquared));
         // Bound cost on very long edges and leave unsuitable input with the proven fitter.
         if (points.Count > MaxPoints || points.Any(p => !double.IsFinite(p.X) || !double.IsFinite(p.Y)))
-            return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared);
+            { usedOriginalFallback = true; return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared); }
 
         var samples = new List<Vec2>(points);
         if (closed && samples[0].DistSq(samples[^1]) > 1e-12)
             samples.Add(samples[0]);
         if (closed && samples.Count < 5)
-            return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared);
+            { usedOriginalFallback = true; return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared); }
 
         int end = samples.Count - 1;
         var corners = new SortedSet<int>(protectedCorners.Where(k => k > 0 && k < end));
@@ -79,16 +86,16 @@ public static class EkstraceV1Fitter
 
         if (output.Count == 0 || output.Count > MaxPoints ||
             output.Any(c => !Finite(c.P0) || !Finite(c.P1) || !Finite(c.P2) || !Finite(c.P3)))
-            return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared);
+            { usedOriginalFallback = true; return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared); }
 
         // Shared chains must retain the original junction endpoints; for a
         // closed ring the seam may move only to another existing corner.
         if (!closed &&
             (output[0].P0.DistSq(points[0]) > 1e-12 ||
              output[^1].P3.DistSq(points[^1]) > 1e-12))
-            return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared);
+            { usedOriginalFallback = true; return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared); }
         if (closed && output[0].P0.DistSq(output[^1].P3) > 1e-12)
-            return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared);
+            { usedOriginalFallback = true; return BezierFitter.FitChain(points, closed, protectedCorners, toleranceSquared); }
         return output;
     }
 
