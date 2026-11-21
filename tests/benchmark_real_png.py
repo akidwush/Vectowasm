@@ -48,7 +48,8 @@ def seam_mask(path, scale):
     for entry in tree.getroot().iter(f"{{{NS}}}path"):
         if entry.get("data-seam") != "1":
             continue
-        entry.set("stroke", "#000000")
+        entry.set("fill", "none") # Restore inherited SVG-root fill
+entry.set("stroke", "#000000")
         entry.set("stroke-opacity", "1")
         root.append(entry)
     if not len(root):
