@@ -99,8 +99,8 @@ public static class SvgWriter
 
     private static bool NearLine(CubicBezier c) =>
         c.IsLine() ||
-        (Deviation(c.P1, c.P0, c.P3) <= 0.16 &&
-         Deviation(c.P2, c.P0, c.P3) <= 0.16);
+        (Deviation(c.P1, c.P0, c.P3) <= 0.23 &&
+         Deviation(c.P2, c.P0, c.P3) <= 0.23);
 
     // Coalesce collinear microsegments (<1-1.5px) instead of emitting a
     // redundant node. Do not blindly delete curved detail or bridge a gap.
