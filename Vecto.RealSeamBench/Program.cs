@@ -3,9 +3,10 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Vecto.Core;
 
-if (args.Length != 4)
+bool photo = args.Length == 5 && args[4] == "photo";
+if (args.Length != 4 && !photo)
 {
-    Console.Error.WriteLine("Usage: real-seam-bench <input.rgba> <width> <height> <out-dir>");
+    Console.Error.WriteLine("Usage: real-seam-bench <input.rgba> <width> <height> <out-dir> [photo]");
     return 2;
 }
 string input = args[0];
@@ -20,11 +21,11 @@ var image = new RasterImage(width, height, rgba);
 Directory.CreateDirectory(folder);
 TraceOptions Options(bool seam) => new()
 {
-    Style = ImageStyle.Crisp,
+    Style = photo ? ImageStyle.Photo : ImageStyle.Crisp,
     ShapeMode = ShapeMode.Stacked,
-    Detail = DetailLevel.High,
+    Detail = photo ? DetailLevel.Medium : DetailLevel.High,
     PaletteMode = PaletteMode.FixedCount,
-    ColorCount = 7,
+    ColorCount = photo ? 8 : 7,
     Seed = 1,
     CurveFitting = true,
     OptimizeNodes = true,
@@ -41,26 +42,40 @@ var protectedTrace = Tracer.Trace(image, Options(true));
 long onMs = watch.ElapsedMilliseconds;
 string offSvg = SvgWriter.Write(original.Document);
 string onSvg = SvgWriter.Write(protectedTrace.Document);
-string offPath = Path.Combine(folder, "tiger_stacked_OFF.svg");
-string onPath = Path.Combine(folder, "tiger_stacked_ON.svg");
+string stem = photo ? "photo" : "tiger";
+string offPath = Path.Combine(folder, stem + "_stacked_OFF.svg");
+string onPath = Path.Combine(folder, stem + "_stacked_ON.svg");
 File.WriteAllText(offPath, offSvg);
 File.WriteAllText(onPath, onSvg);
 
-var originalOnly = new Regex(@"<path [^>]*?/>", RegexOptions.Compiled | RegexOptions.Singleline);
-string[] OrigPaths(string svg) => originalOnly.Matches(svg).Select(m => m.Value)
-    .Where(p => !p.Contains("data-seam", StringComparison.Ordinal)).ToArray();
+var pathTags = new Regex(@"<path\b[^>]*?/>", RegexOptions.Compiled | RegexOptions.Singleline);
+var dAttribute = new Regex(@"\sd=""([^""]*)""", RegexOptions.Compiled);
+var commands = new Regex(@"[MmLlHhVvCcSsQqTtAaZz]", RegexOptions.Compiled);
+string[] Tags(string svg) => pathTags.Matches(svg).Select(x => x.Value).ToArray();
+string[] OrigPaths(string svg) => Tags(svg).Where(x => !x.Contains("data-seam", StringComparison.Ordinal)).ToArray();
 string[] basePaths = OrigPaths(offSvg), protectedPaths = OrigPaths(onSvg);
 bool unchanged = basePaths.SequenceEqual(protectedPaths);
-int AllPaths(string svg) => originalOnly.Matches(svg).Count;
-int SubPaths(string svg) => Regex.Matches(svg, @"\sM\s").Count;
-int Curves(string svg) => Regex.Matches(svg, @"\sC\s").Count;
+var baseTags = Tags(offSvg);
+var onTags = Tags(onSvg);
+int AllPaths(string svg) => Tags(svg).Length;
+// Count explicit commands in BOTH compact/relative helper paths and main paths.
+int Count(string[] tags, string types, bool? seam = null) => tags
+    .Where(tag => seam is null || tag.Contains("data-seam", StringComparison.Ordinal) == seam)
+    .Sum(tag => commands.Matches(dAttribute.Match(tag).Groups[1].Value)
+         .Count(cmd => types.Contains(cmd.Value[0])));
+const string draw = "LlHhVvCcSsQqTtAa";
+const string move = "Mm";
+const string cubic = "CcSs";
+const string line = "LlHhVv";
+int SourceHelperCurves() => protectedTrace.Document.Regions.Sum(r =>
+    r.SeamUnderpaints.Sum(x => x.Curves.Count));
 long offBytes = System.Text.Encoding.UTF8.GetByteCount(offSvg);
 long onBytes = System.Text.Encoding.UTF8.GetByteCount(onSvg);
 var record = new
 {
-    fixture = "previously_uploaded_real_tiger_vector_rasterized_into_RGBA",
-    source = "tests/fixtures/tiger_source_user.svg",
-    width, height, style = "Crisp", colors = 7, detail = "High",
+    fixture = photo ? "native_raster_astronaut_png" : "previously_uploaded_real_tiger_vector_rasterized_into_RGBA",
+    source = photo ? "skimage.data.astronaut" : "tests/fixtures/tiger_source_user.svg",
+    width, height, style = photo ? "Photo" : "Crisp", colors = photo ? 8 : 7, detail = photo ? "Medium" : "High",
     setup = "Stacked Shapes; original fitter; 0.35px underpaint ONLY when flag ON",
     off_bytes = offBytes,
     on_bytes = onBytes,
@@ -71,20 +86,32 @@ var record = new
     on_paths = AllPaths(onSvg),
     off_main_paths = basePaths.Length,
     on_main_paths = protectedPaths.Length,
-    off_subpaths = SubPaths(offSvg),
-    on_subpaths = SubPaths(onSvg),
-    off_cubic_commands = Curves(offSvg),
-    on_cubic_commands = Curves(onSvg),
+    off_subpaths = Count(baseTags, move),
+    on_subpaths = Count(onTags, move),
+    off_cubic_commands = Count(baseTags, cubic),
+    on_cubic_commands = Count(onTags, cubic),
+    off_line_commands = Count(baseTags, line),
+    on_line_commands = Count(onTags, line),
+    source_underpaint_curves = SourceHelperCurves(),
+    emitted_underpaint_cubic_commands = Count(onTags, cubic, true),
+    emitted_underpaint_line_commands = Count(onTags, line, true),
+    emitted_underpaint_nodes = Count(onTags, draw + move, true),
     main_paths_byte_identical = unchanged,
     off_ms = offMs, on_ms = onMs,
-    off_nodes = original.Diagnostics.NodeCount,
-    on_nodes = protectedTrace.Diagnostics.NodeCount,
+    off_nodes = Count(baseTags, draw + move),
+    on_nodes = Count(onTags, draw + move),
+    original_region_nodes_off = original.Diagnostics.NodeCount,
+    original_region_nodes_on = protectedTrace.Diagnostics.NodeCount,
     stats = protectedTrace.Diagnostics.TopologySeams,
 };
 string json = JsonSerializer.Serialize(record, new JsonSerializerOptions { WriteIndented = true });
 File.WriteAllText(Path.Combine(folder, "benchmark_core.json"), json);
 Console.WriteLine("TIGER_REAL_BENCH " + json);
 if (!unchanged) throw new InvalidOperationException("A visible-region path changed under seam protection");
+if (SourceHelperCurves() != protectedTrace.Diagnostics.TopologySeams.UnderpaintCurves)
+    throw new InvalidOperationException("Helper source-curve count is inconsistent");
+if (Count(onTags, draw, true) == 0 && SourceHelperCurves() > 0)
+    throw new InvalidOperationException("No helper geometry survived serialization");
 if (offBytes == onBytes && protectedTrace.Diagnostics.TopologySeams.UnderpaintRuns > 0)
     throw new InvalidOperationException("Seam helpers were selected but no extra SVG output was generated");
 return 0;

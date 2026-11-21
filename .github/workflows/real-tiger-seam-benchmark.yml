@@ -5,6 +5,7 @@ on:
       - 'Vecto.Core/**'
       - 'Vecto.RealSeamBench/**'
       - 'tests/benchmark_real_tiger.py'
+      - 'tests/benchmark_real_png.py'
       - 'tests/fixtures/tiger_source_user.svg'
       - '.github/workflows/real-tiger-seam-benchmark.yml'
   workflow_dispatch:
@@ -42,6 +43,14 @@ jobs:
           python -m playwright install --with-deps chromium firefox
       - name: Browser SVG raster quality at 100%, 200%, 400%
         run: python tests/browser_seam_tiger.py tiger-benchmark-output
+      - name: Prepare independent real-photo PNG (scikit-image astronaut)
+        run: python tests/benchmark_real_png.py prepare
+      - name: Trace native PNG photo, Stacked OFF versus ON
+        run: |
+          dotnet run --project Vecto.RealSeamBench/Vecto.RealSeamBench.csproj -c Release --no-build -- \
+            real-png-benchmark-input/astronaut_rgba_256.bin 256 256 real-png-benchmark-output photo
+      - name: Validate real PNG at 100%, 200%, 400%
+        run: python tests/benchmark_real_png.py report
       - name: Archive SVGs, visual side-by-side HTML, PNG comparisons and metrics
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,5 +59,7 @@ jobs:
           path: |
             tiger-benchmark-output/**
             tiger-benchmark-input/tiger_input_512.png
+            real-png-benchmark-input/**
+            real-png-benchmark-output/**
           if-no-files-found: warn
           compression-level: 6

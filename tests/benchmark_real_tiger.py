@@ -154,7 +154,7 @@ def inspect(source_path, off_svg, on_svg, out_dir):
         if outside > 0 or solid_interior_changes > 0:
             clean = False
 
-    size_ok = core["increase_pct"] <= 20.0
+    size_ok = core["increase_pct"] < 10.0
     core_paths_ok = core["main_paths_byte_identical"]
     visual_gate = max_ssim_loss <= 0.001 and max_iou_loss <= 0.002
     summary = {
@@ -163,7 +163,7 @@ def inspect(source_path, off_svg, on_svg, out_dir):
         "core": core,
         "scales": records,
         "merge_gate": {
-            "size_increase_at_most_20pct": size_ok,
+            "size_increase_below_10pct": size_ok,
             "main_paths_byte_identical": core_paths_ok,
             "no_pixel_changes_outside_safe_seam": clean,
             "no_material_ssim_or_iou_drop": visual_gate,

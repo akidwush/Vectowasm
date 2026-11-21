@@ -35,6 +35,7 @@ def test_reference(folder, scale):
     error_before = 0.0
     error_after = 0.0
     changed = 0
+    improved_pixels = 0
     outside_changes = 0
     for y in range(before.height):
         for x in range(before.width):
@@ -53,18 +54,25 @@ def test_reference(folder, scale):
                 # shared boundary, without a white background leaking through.
                 front_area = max(0.0, min(1.0, x + 1 - edge_x * scale))
                 expected = tuple(back[i] * (1 - front_area) + front[i] * front_area for i in range(3))
-                error_before += rgb_error(b, expected)
-                error_after += rgb_error(a, expected)
+                eb, ea = rgb_error(b, expected), rgb_error(a, expected)
+                error_before += eb
+                error_after += ea
+                if ea < eb:
+                    improved_pixels += 1
 
     assert changed > 0, f"{scale}x: fixture underpaint does not change any seam pixels"
     assert outside_changes == 0, (
         f"{scale}x: {outside_changes} pixels changed outside internal seam guard"
     )
+    assert improved_pixels > 0, (
+        f"{scale}x: SVG-writer E2E subpixel seam fixture improved 0 pixels"
+    )
     assert error_before > 0 and error_after < error_before, (
         f"{scale}x: seam white-leak error not improved: {error_before} -> {error_after}"
     )
     print(
-        f"PASS {100 * scale}% reference: changed={changed} "
+        f"PASS {100 * scale}% writer E2E subpixel: changed={changed} "
+        f"improved_pixels={improved_pixels} "
         f"outside_changes={outside_changes} "
         f"ideal_rgb_sse={error_before:.1f}->{error_after:.1f} "
         f"relative={error_after / error_before:.4f}"
@@ -90,7 +98,7 @@ def test_traced(folder, scale):
     assert other_changes == 0, (
         f"{scale}x: traced SVG changes {other_changes} pixels outside the safe shared edge"
     )
-    print(f"PASS {100 * scale}% end-to-end: {changes} seam-band pixel changes, "
+    print(f"PASS {100 * scale}% crisp traced-geometry: {changes} seam-band pixel changes, "
           "0 silhouette/background/detail changes")
 
 

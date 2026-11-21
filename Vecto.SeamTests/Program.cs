@@ -59,6 +59,9 @@ Check(augmented.Diagnostics.TopologySeams.SafeSharedEdges > 0 &&
 Check(svgAug.Contains("data-seam=\"1\"") &&
       svgAug.Contains("stroke-linejoin=\"round\""),
     "Only explicit auxiliary underpaint paths receive a stroke");
+Check(Regex.IsMatch(svgAug, @"data-seam=""1""[^>]*d=""m") &&
+      !Regex.IsMatch(svgAug, @"data-seam=""1""[^>]*d=""M"),
+    "Seam helper uses relative SVG subpath moves");
 Check(!svgBase.Contains("data-seam"),
     "Flag OFF retains existing SVG exporter output");
 Check(OriginalPathTags(svgBase).SequenceEqual(OriginalPathTags(svgAug)),
