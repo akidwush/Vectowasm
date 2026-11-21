@@ -91,4 +91,64 @@ var old = Tracer.Trace(original, new TraceOptions
 });
 Check(old.Document.Regions.Count == trace.Document.Regions.Count,
     "Original and Ekstracev1 preserve region counts");
+// Prove the selected algorithm does not silently produce the original SVG
+// on every curved raster. Straight edges are intentionally allowed to match.
+static RasterImage CurvedRaster(bool wavy)
+{
+    var raster = new RasterImage(160, 160);
+    for (int y = 0; y < raster.Height; y++)
+        for (int x = 0; x < raster.Width; x++)
+        {
+            double dx = x - 80, dy = y - 80;
+            double a = Math.Atan2(dy, dx);
+            double radius = wavy ? 47 + 9 * Math.Sin(5 * a) : 48;
+            bool inside = wavy
+                ? Math.Sqrt(dx * dx + dy * dy) < radius
+                : dx * dx / (58.0 * 58) + dy * dy / (40.0 * 40) < 1;
+            raster.SetPixel(x, y, inside
+                ? new Rgba32(19, 120, 86, 255)
+                : new Rgba32(251, 251, 251, 255));
+        }
+    return raster;
+}
+int distinctCurvedFixtures = 0;
+foreach (bool wavy in new[] { false, true })
+{
+    var img = CurvedRaster(wavy);
+    var originalOptions = new TraceOptions
+    {
+        Style = ImageStyle.Crisp, Detail = DetailLevel.Medium,
+        PaletteMode = PaletteMode.FixedCount, ColorCount = 2,
+        OptimizeNodes = false, ContourFittingEngine = ContourFittingEngine.Original
+    };
+    var experimentalOptions = new TraceOptions
+    {
+        Style = ImageStyle.Crisp, Detail = DetailLevel.Medium,
+        PaletteMode = PaletteMode.FixedCount, ColorCount = 2,
+        OptimizeNodes = false, ContourFittingEngine = ContourFittingEngine.Ekstracev1
+    };
+    var traceOriginal = Tracer.Trace(img, originalOptions);
+    var traceEkstrace = Tracer.Trace(img, experimentalOptions);
+    string originalSvg = SvgWriter.Write(traceOriginal.Document);
+    string eksperimenSvg = SvgWriter.Write(traceEkstrace.Document);
+    Console.WriteLine($"Curved fixture {(wavy ? "wavy" : "ellipse")}: " +
+        $"byte_identical={originalSvg == eksperimenSvg}, " +
+        $"original_segments={traceOriginal.Diagnostics.FittedChainNodes}, " +
+        $"ekstrace_segments={traceEkstrace.Diagnostics.FittedChainNodes}, " +
+        $"ekstrace_chains={traceEkstrace.Diagnostics.EkstraceV1Chains}, " +
+        $"fallback={traceEkstrace.Diagnostics.EkstraceV1OriginalFallbackChains}, " +
+        $"curved={traceEkstrace.Diagnostics.EkstraceV1CurvedChains}");
+    Check(traceEkstrace.Diagnostics.EkstraceV1Chains > 0,
+        "Ekstrace actual raster dispatch reached fitter");
+    Check(traceOriginal.Diagnostics.EkstraceV1Chains == 0,
+        "Original mode never records experimental fitter");
+    if (!string.Equals(originalSvg, eksperimenSvg, StringComparison.Ordinal))
+        distinctCurvedFixtures++;
+}
+Check(distinctCurvedFixtures > 0,
+    "Ekstracev1 differs from Original on at least one curved raster SVG");
+var bigChain = Enumerable.Range(0, 4100).Select(x => new Vec2(x, 10)).ToList();
+_ = EkstraceV1Fitter.FitChain(bigChain, false, new List<int>(), 0.25, out bool usedFallback);
+Check(usedFallback, "Large chain fallback is explicitly reported");
+
 Console.WriteLine("Ekstracev1 integration smoke checks complete.");
