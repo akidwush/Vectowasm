@@ -5,6 +5,8 @@ on:
       - 'Vecto.Browser/Shared/PreviewCanvas.razor'
       - 'Vecto.Browser/Pages/Index.razor'
       - 'Vecto.Browser/wwwroot/js/vecto-preview.js'
+      - 'Vecto.Browser/wwwroot/js/vecto-drop.js'
+      - 'Vecto.Browser/wwwroot/js/tests/drop.test.mjs'
       - 'Vecto.Browser/wwwroot/js/tests/preview.test.mjs'
       - 'Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.html'
       - 'Vecto.Browser/wwwroot/js/tests/preview-browser-smoke.mjs'
@@ -23,7 +25,9 @@ jobs:
       - name: Static JS parse and pointer/zoom math tests
         run: |
           node --check Vecto.Browser/wwwroot/js/vecto-preview.js
+          node --check Vecto.Browser/wwwroot/js/vecto-drop.js
           node --test Vecto.Browser/wwwroot/js/tests/preview.test.mjs
+          node --test Vecto.Browser/wwwroot/js/tests/drop.test.mjs
       - name: Real Chrome smoke test for 1000x native SVG and blank-free pan
         shell: bash
         run: |
