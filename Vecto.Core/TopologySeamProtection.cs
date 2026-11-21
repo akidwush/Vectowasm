@@ -12,7 +12,8 @@ public readonly record struct TopologySeamStats(
     int UnderpaintCurves,
     int SkippedNoOverlapNeed,
     int SkippedUnsafe,
-    bool SkippedForLayerReasoning);
+    bool SkippedForLayerReasoning,
+    int SkippedLowContrast = 0);
 
 internal static class TopologySeamProtection
 {
@@ -25,6 +26,7 @@ internal static class TopologySeamProtection
     public static List<RegionPath> Attach(
         List<RegionPath> regions, Segmentation segmentation, BoundaryGraph graph,
         IReadOnlyList<int> paintOrder, HashSet<int>[] frontOf,
+        Func<int, Rgba32> colorOfRegion,
         double bleedPx, int width, int height, CancellationToken cancellation, out TopologySeamStats stats)
     {
         if (regions.Count != paintOrder.Count)
@@ -57,7 +59,7 @@ internal static class TopologySeamProtection
         for (int i = 0; i < canvasBackground.Length; i++)
             canvasBackground[i] = edgeTouches[i] >= perimeter * .65 &&
                 segmentation.RegionArea[i] >= (long)width * height * .35;
-        int considered = 0, safe = 0, runs = 0, curves = 0, already = 0, unsafeEdges = 0;
+        int considered = 0, safe = 0, runs = 0, curves = 0, already = 0, unsafeEdges = 0, lowContrast = 0;
 
         foreach (var chain in graph.Chains)
         {
@@ -81,6 +83,17 @@ internal static class TopologySeamProtection
                 canvasBackground[back] || canvasBackground[front] ||
                 segmentation.RegionPalette[back] == segmentation.RegionPalette[front])
             { unsafeEdges++; continue; }
+
+            // Low RGB-contrast seams are visually insignificant and would
+            // dominate SVG helper-node overhead on detailed artwork.
+            // This conservative gate only affects hidden auxiliary paint.
+            var backColor = colorOfRegion(back);
+            var frontColor = colorOfRegion(front);
+            int dr = backColor.R - frontColor.R;
+            int dg = backColor.G - frontColor.G;
+            int db = backColor.B - frontColor.B;
+            if (dr * dr + dg * dg + db * db < 60 * 60)
+            { lowContrast++; continue; }
 
             var run = new List<CubicBezier>();
             int acceptedPieces = 0;
@@ -154,7 +167,7 @@ internal static class TopologySeamProtection
                 });
             else output.Add(region);
         }
-        stats = new TopologySeamStats(considered, safe, runs, curves, already, unsafeEdges, false);
+        stats = new TopologySeamStats(considered, safe, runs, curves, already, unsafeEdges, false, lowContrast);
         return output;
     }
 
