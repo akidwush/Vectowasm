@@ -35,6 +35,28 @@ internal static class TopologySeamProtection
         var rank = new int[paintOrder.Count];
         for (int i = 0; i < paintOrder.Count; i++) rank[paintOrder[i]] = i;
         var extras = new List<SeamUnderpaint>[regions.Count];
+        // Identify true canvas-background regions. An outer silhouette touching
+        // that region must never be stroked, even if the background is opaque.
+        var edgeTouches = new int[segmentation.RegionCount];
+        for (int x = 0; x < width; x++)
+        {
+            int top = segmentation.RegionId[x];
+            int bottom = segmentation.RegionId[(height - 1) * width + x];
+            if (top >= 0) edgeTouches[top]++;
+            if (bottom >= 0) edgeTouches[bottom]++;
+        }
+        for (int y = 0; y < height; y++)
+        {
+            int left = segmentation.RegionId[y * width];
+            int right = segmentation.RegionId[y * width + width - 1];
+            if (left >= 0) edgeTouches[left]++;
+            if (right >= 0) edgeTouches[right]++;
+        }
+        int perimeter = 2 * (width + height);
+        var canvasBackground = new bool[segmentation.RegionCount];
+        for (int i = 0; i < canvasBackground.Length; i++)
+            canvasBackground[i] = edgeTouches[i] >= perimeter * .65 &&
+                segmentation.RegionArea[i] >= (long)width * height * .35;
         int considered = 0, safe = 0, runs = 0, curves = 0, already = 0, unsafeEdges = 0;
 
         foreach (var chain in graph.Chains)
@@ -56,6 +78,7 @@ internal static class TopologySeamProtection
             { already++; continue; }
             if (segmentation.RegionArea[back] < 16 ||
                 segmentation.RegionArea[front] < 16 ||
+                canvasBackground[back] || canvasBackground[front] ||
                 segmentation.RegionPalette[back] == segmentation.RegionPalette[front])
             { unsafeEdges++; continue; }
 
