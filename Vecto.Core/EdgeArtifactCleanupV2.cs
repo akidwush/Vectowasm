@@ -214,7 +214,7 @@ public static class EdgeArtifactCleanupV2
                 else decision = "source-supports-original";
             }
             if (metrics.Count < 256)
-                metrics.Add(new EdgeRegionDiagnostic(r,area,perimeter,
+                metrics.Add(new EdgeRegionDiagnostic(r,area,perimeter[r],
                     Math.Round(thickness,3),Math.Round(aspect,3),
                     contacts.Count, Math.Round(coreFraction,3),decision));
         }
