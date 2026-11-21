@@ -7,6 +7,7 @@ CairoSVG is an independent SVG renderer; browser screenshots require separate
 browser-specific inspection.
 """
 import io
+import copy
 import json
 import math
 import sys
@@ -43,7 +44,8 @@ def make_seam_mask(svg_path, scale):
     })
     for path in root.iter(f"{{{NS}}}path"):
         if path.get("data-seam-underpaint") == "1":
-            clone = ET.fromstring(ET.tostring(path, encoding="utf-8"))
+            clone = copy.deepcopy(path)
+            clone.tail = None  # strip serializer-external text between SVG paths
             clone.set("stroke", "#000000")
             clone.set("stroke-opacity", "1")
             out.append(clone)
