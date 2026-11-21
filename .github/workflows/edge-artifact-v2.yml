@@ -1,0 +1,38 @@
+name: Experimental Edge Artifact Cleanup V2
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Core/**'
+      - 'Vecto.EdgeArtifactTests/**'
+      - 'Vecto.EdgeArtifactBench/**'
+      - 'tests/benchmark_edge_artifact_v2.py'
+      - 'tests/browser_edge_artifact_v2.py'
+      - '.github/workflows/edge-artifact-v2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-aware-edge-cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run strict synthetic V2 / pre-cleanup detail tests
+        run: dotnet run --project Vecto.EdgeArtifactTests/Vecto.EdgeArtifactTests.csproj -c Release
+      - name: Publish browser UI with experimental flag OFF by default
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - name: Assert defaults and benchmark flag permutations
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          o=Path("Vecto.Core/TraceOptions.cs").read_text()
+          ui=Path("Vecto.Browser/Pages/Index.razor").read_text()
+          assert 'public bool EdgeArtifactCleanupV2 { get; set; } = false;' in o
+          assert 'public bool EnableTopologySeamProtection { get; set; } = false;' in o
+          assert 'EdgeArtifactCleanupV2 = edgeArtifactCleanupV2' in ui
+          assert 'DetailProtectionV2.Capture(img, labels, centers, ct)' in Path("Vecto.Core/Tracer.cs").read_text()
+          print("PASS V2 OFF, independent option, detail mask before first absorption")
+          PY
