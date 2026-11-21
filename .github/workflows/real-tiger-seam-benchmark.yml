@@ -36,6 +36,12 @@ jobs:
             tiger-benchmark-input/tiger_rgba_512.bin 512 512 tiger-benchmark-output
       - name: Compare 100%, 200%, 400% SSIM, IoU, seam and thin-detail leakage
         run: python tests/benchmark_real_tiger.py report tiger-benchmark-output
+      - name: Install browser rendering engines for actual Chromium and Firefox checks
+        run: |
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium firefox
+      - name: Browser SVG raster quality at 100%, 200%, 400%
+        run: python tests/browser_seam_tiger.py tiger-benchmark-output
       - name: Archive SVGs, visual side-by-side HTML, PNG comparisons and metrics
         if: always()
         uses: actions/upload-artifact@v4
