@@ -40,6 +40,11 @@ public sealed class TraceDiagnostics
     public int EkstraceV1Chains { get; init; }
     public int EkstraceV1OriginalFallbackChains { get; init; }
     public int EkstraceV1CurvedChains { get; init; }
+    public int InverseAreaEligiblePoints { get; init; }
+    public int InverseAreaMovedPoints { get; init; }
+    public int InverseAreaRejectedPoints { get; init; }
+    public int InverseAreaSrgbPoints { get; init; }
+    public int InverseAreaLinearPoints { get; init; }
     public int RegionMergeV1Before { get; init; }
     public int RegionMergeV1After { get; init; }
     public int RegionMergeV1ChangedPixels { get; init; }
@@ -183,6 +188,11 @@ public static class Tracer
         int globalReducedChains = 0;
         int localV3MovedPoints = 0;
         int ekstraceV1Chains = 0, ekstraceV1Fallbacks = 0, ekstraceV1CurvedChains = 0;
+        int areaEligible = 0, areaMoved = 0, areaRejected = 0, areaSrgb = 0, areaLinear = 0;
+        if (options.EkstraceInverseAreaV1 &&
+            (!double.IsFinite(options.EkstraceInverseAreaMaxShift) ||
+             options.EkstraceInverseAreaMaxShift < .05 || options.EkstraceInverseAreaMaxShift > .35))
+            throw new ArgumentOutOfRangeException(nameof(options.EkstraceInverseAreaMaxShift));
         if (options.LocalEdgeRefinementV3 &&
             (!double.IsFinite(options.LocalEdgeMaxShiftV3) ||
              options.LocalEdgeMaxShiftV3 < 0.05 || options.LocalEdgeMaxShiftV3 > 0.35 ||
@@ -236,6 +246,17 @@ public static class Tracer
                 }
                 if (options.ContourFittingEngine == ContourFittingEngine.Ekstracev1)
                 {
+                    if (options.EkstraceInverseAreaV1)
+                    {
+                        var area = EkstraceInverseArea.Refine(chain.Points, chain.Closed,
+                            corners, edgeSamplingImage, ColorOf(chain.Left),
+                            ColorOf(chain.Right), options.EkstraceInverseAreaMaxShift, ct);
+                        Interlocked.Add(ref areaEligible, area.EligiblePoints);
+                        Interlocked.Add(ref areaMoved, area.MovedPoints);
+                        Interlocked.Add(ref areaRejected, area.RejectedPoints);
+                        Interlocked.Add(ref areaSrgb, area.SrgbPoints);
+                        Interlocked.Add(ref areaLinear, area.LinearPoints);
+                    }
                     chain.Curve = EkstraceV1Fitter.FitChain(chain.Points, chain.Closed, corners,
                         p.FitToleranceSq, out bool usedOriginalFallback, ct);
                     Interlocked.Increment(ref ekstraceV1Chains);
@@ -339,6 +360,11 @@ public static class Tracer
             EkstraceV1Chains = ekstraceV1Chains,
             EkstraceV1OriginalFallbackChains = ekstraceV1Fallbacks,
             EkstraceV1CurvedChains = ekstraceV1CurvedChains,
+            InverseAreaEligiblePoints = areaEligible,
+            InverseAreaMovedPoints = areaMoved,
+            InverseAreaRejectedPoints = areaRejected,
+            InverseAreaSrgbPoints = areaSrgb,
+            InverseAreaLinearPoints = areaLinear,
             RegionMergeV1Before = regionMerge.RegionsBefore,
             RegionMergeV1After = regionMerge.RegionsAfter,
             RegionMergeV1ChangedPixels = regionMerge.RelabeledPixels,
