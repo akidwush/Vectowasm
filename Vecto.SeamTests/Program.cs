@@ -43,7 +43,7 @@ static TraceOptions Options(ShapeMode shape, bool protect, bool reasoning = fals
 
 static string[] OriginalPathTags(string svg) =>
     Regex.Matches(svg, "<path [^>]*?/>", RegexOptions.CultureInvariant)
-        .Select(m => m.Value).Where(tag => !tag.Contains("data-seam-underpaint"))
+        .Select(m => m.Value).Where(tag => !tag.Contains("data-seam"))
         .ToArray();
 
 var source = ThreePaints();
@@ -56,10 +56,10 @@ Check(augmented.Diagnostics.TopologySeams.ConsideredSharedEdges > 0,
 Check(augmented.Diagnostics.TopologySeams.SafeSharedEdges > 0 &&
       augmented.Diagnostics.TopologySeams.UnderpaintRuns > 0,
     "At least one internal back/front edge receives underpainting");
-Check(svgAug.Contains("data-seam-underpaint=\"1\"") &&
-      svgAug.Contains("stroke-linecap=\"butt\""),
+Check(svgAug.Contains("data-seam=\"1\"") &&
+      svgAug.Contains("stroke-linejoin=\"round\""),
     "Only explicit auxiliary underpaint paths receive a stroke");
-Check(!svgBase.Contains("data-seam-underpaint"),
+Check(!svgBase.Contains("data-seam"),
     "Flag OFF retains existing SVG exporter output");
 Check(OriginalPathTags(svgBase).SequenceEqual(OriginalPathTags(svgAug)),
     "Every original region path is byte-for-byte unchanged with underpaint ON");
@@ -75,9 +75,9 @@ Check(Rasterizer.Render(baseline.Document, supersample: 1).Pixels.SequenceEqual(
 
 var paths = Regex.Matches(svgAug, "<path [^>]*?/>")
     .Select(match => match.Value).ToArray();
-int underpaintTag = Array.FindIndex(paths, p => p.Contains("data-seam-underpaint"));
+int underpaintTag = Array.FindIndex(paths, p => p.Contains("data-seam"));
 Check(underpaintTag >= 1 && underpaintTag + 1 < paths.Length &&
-      !paths[underpaintTag + 1].Contains("data-seam-underpaint"),
+      !paths[underpaintTag + 1].Contains("data-seam"),
     "Underpaint emitted after a painted back region and before a front region");
 Check(augmented.Diagnostics.TopologySeams.SkippedNoOverlapNeed > 0 ||
       augmented.Diagnostics.TopologySeams.SkippedUnsafe > 0,
@@ -113,7 +113,7 @@ Check(transparentResult.Diagnostics.TopologySeams.UnderpaintRuns == 0 &&
 
 var reasoning = Tracer.Trace(source, Options(ShapeMode.Stacked, true, reasoning: true));
 Check(reasoning.Diagnostics.TopologySeams.SkippedForLayerReasoning &&
-      !SvgWriter.Write(reasoning.Document).Contains("data-seam-underpaint"),
+      !SvgWriter.Write(reasoning.Document).Contains("data-seam"),
     "Seam feature safely skips the optional region-merging painter");
 Check(svgAug == SvgWriter.Write(Tracer.Trace(source, Options(ShapeMode.Stacked, true)).Document),
     "Seam underpaint export is deterministic");
