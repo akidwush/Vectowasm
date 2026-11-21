@@ -30,6 +30,21 @@ public static class SvgWriter
               .Append("\" opacity=\"1.00\" d=\"");
             foreach (var loop in region.Loops) AppendLoop(sb, loop);
             sb.Append("\" />\n");
+            // Optional internal underpaint is emitted AFTER its back region
+            // but BEFORE the as-yet-unpainted front region. Main paths do not
+            // receive stroke or geometry changes. No global micro-stroke.
+            foreach (var seam in region.SeamUnderpaints)
+            {
+                if (seam.Curves.Count == 0) continue;
+                sb.Append("<path data-seam-underpaint=\"1\" fill=\"none\" stroke=\"#")
+                  .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
+                  .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
+                  .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
+                  .Append("\" stroke-width=\"").Append(F(seam.StrokeWidth))
+                  .Append("\" stroke-linecap=\"butt\" stroke-linejoin=\"round\" d=\"");
+                AppendUnderpaint(sb, seam.Curves);
+                sb.Append("\" />\n");
+            }
         }
         sb.Append("</svg>\n");
         return sb.ToString();
@@ -50,6 +65,22 @@ public static class SvgWriter
                   .Append(F(seg.P3.X)).Append(' ').Append(F(seg.P3.Y));
         }
         sb.Append(" Z");
+    }
+
+    private static void AppendUnderpaint(StringBuilder sb, IReadOnlyList<CubicBezier> curves)
+    {
+        var first = curves[0];
+        sb.Append(" M ").Append(F(first.P0.X)).Append(' ').Append(F(first.P0.Y));
+        foreach (var seg in curves)
+        {
+            if (seg.IsLine())
+                sb.Append(" L ").Append(F(seg.P3.X)).Append(' ').Append(F(seg.P3.Y));
+            else
+                sb.Append(" C ").Append(F(seg.P1.X)).Append(' ').Append(F(seg.P1.Y)).Append(' ')
+                  .Append(F(seg.P2.X)).Append(' ').Append(F(seg.P2.Y)).Append(' ')
+                  .Append(F(seg.P3.X)).Append(' ').Append(F(seg.P3.Y));
+        }
+        // Intentionally NO Z: closing the auxiliary path would create a new seam.
     }
 
     static string F(double v) => v.ToString("0.00", CultureInfo.InvariantCulture);
