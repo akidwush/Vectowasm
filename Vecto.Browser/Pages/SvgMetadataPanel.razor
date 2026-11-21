@@ -66,6 +66,18 @@
                 <div><dt>Piksel AA dialihkan label</dt><dd>@Diagnostics.AntiAliasBands.PixelsReassigned.ToString("N0")</dd></div>
                 <div><dt>Batas perubahan AA</dt><dd>2% dari piksel input</dd></div>
             }
+            <div><dt>Edge Artifact Cleanup V2</dt><dd>@(Options.EdgeArtifactCleanupV2 ? "ON (eksperimen)" : "OFF")</dd></div>
+            @if (Options.EdgeArtifactCleanupV2)
+            {
+                <div><dt>Status V2</dt><dd>@(Diagnostics.V2Skipped ? "Skipped: exact palette/texture" : Diagnostics.V2Artifacts.RolledBack ? "Rollback (topologi)" : "Selesai")</dd></div>
+                <div><dt>Detail dilindungi sebelum cleanup</dt><dd>@Diagnostics.V2DetailProtection.ProtectedRegions region / @Diagnostics.V2DetailProtection.ProtectedPixels px</dd></div>
+                <div><dt>Thin-region kandidat</dt><dd>@Diagnostics.V2Artifacts.ThinCandidates.ToString("N0")</dd></div>
+                <div><dt>Pita AA V2 terhapus</dt><dd>@Diagnostics.V2Artifacts.AABandsRemoved.ToString("N0")</dd></div>
+                <div><dt>Ringing/sliver V2 terhapus</dt><dd>@Diagnostics.V2Artifacts.RingingFragmentsRemoved.ToString("N0")</dd></div>
+                <div><dt>Region sebelum/sesudah V2</dt><dd>@Diagnostics.V2Artifacts.RegionsBefore.ToString("N0") / @Diagnostics.V2Artifacts.RegionsAfter.ToString("N0")</dd></div>
+                <div><dt>Label piksel ditata ulang V2</dt><dd>@Diagnostics.V2Artifacts.RelabeledPixels.ToString("N0")</dd></div>
+                <div><dt>Kandidat dilindungi / rollback</dt><dd>@Diagnostics.V2Artifacts.ProtectedCandidates / @Diagnostics.V2Artifacts.TopologyRejections</dd></div>
+            }
             <div><dt>Region Merge V1</dt><dd>@(Options.RegionMergeV1 ? "ON (eksperimen)" : "OFF")</dd></div>
             @if (Options.RegionMergeV1)
             {

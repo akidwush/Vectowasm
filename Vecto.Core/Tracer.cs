@@ -59,6 +59,9 @@ public sealed class TraceDiagnostics
     public StackedLayerStats StackedLayers { get; init; }
     public TopologySeamStats TopologySeams { get; init; }
     public AntiAliasBandStats AntiAliasBands { get; init; }
+    public DetailProtectionStats V2DetailProtection { get; init; }
+    public EdgeArtifactStats V2Artifacts { get; init; } = new();
+    public bool V2Skipped { get; init; }
     public bool AntiAliasBandsSkipped { get; init; }
     public long PaletteMs { get; init; }
     public long SegmentMs { get; init; }
@@ -119,14 +122,23 @@ public static class Tracer
             Segmenter.RelabelFringe(img, labels, centers, w, h, ct);
             if (pre != null) rampLines = KeepRampLines(labels, pre, centers);
         }
+        bool v2Skipped = options.EdgeArtifactCleanupV2 && (p.ExactPalette || p.Textured);
+        bool[]? protectedPixels = null;
+        DetailProtectionStats detailProtection = default;
+        if (options.EdgeArtifactCleanupV2 && !v2Skipped)
+        {
+            var captured = DetailProtectionV2.Capture(img, labels, centers, ct);
+            protectedPixels = captured.Pixels;
+            detailProtection = captured.Stats;
+        }
         int opaque = 0;
         for (int i = 0; i < labels.Length; i++)
             if (labels[i] >= 0) opaque++;
         int minArea = Math.Min(p.MinRegionArea, Math.Max(1, opaque / 4));
-        Segmenter.AbsorbSmallRegions(labels, w, h, minArea, ct);
+        Segmenter.AbsorbSmallRegions(labels, w, h, minArea, ct, protectedPixels);
         var palette = CompactPalette(img, labels, centers.Length);
         if (!p.ExactPalette)
-            palette = MergeSimilarDisplays(img, labels, palette, tints, w, h, minArea, ct);
+            palette = MergeSimilarDisplays(img, labels, palette, tints, w, h, minArea, ct, protectedPixels);
         p.NoiseShare = NoiseEstimate.InteriorNoiseShare(img, labels, w, h, ct);
         // The share alone also fires on downscaled text, blurred shadows and dithered gradients;
         // only JPEG ringing fills the 8x8 blocks around edges, so that confirms it
@@ -141,7 +153,7 @@ public static class Tracer
             int noisyMin = Math.Min(Math.Max(p.MinRegionArea, NoiseEstimate.NoisyMinRegionArea), Math.Max(1, opaque / 4));
             if (noisyMin > minArea)
             {
-                Segmenter.AbsorbSmallRegions(labels, w, h, noisyMin, ct);
+                Segmenter.AbsorbSmallRegions(labels, w, h, noisyMin, ct, protectedPixels);
                 palette = CompactPalette(img, labels, palette.Count);
                 p.MinRegionArea = noisyMin;
             }
@@ -159,6 +171,14 @@ public static class Tracer
                 palette = CompactPalette(img, labels, palette.Count);
         }
 
+        EdgeArtifactStats v2Artifacts = new();
+        if (options.EdgeArtifactCleanupV2 && !v2Skipped)
+        {
+            v2Artifacts = EdgeArtifactCleanupV2.Refine(img, labels, palette, protectedPixels!, ct);
+            if (v2Artifacts.RelabeledPixels > 0)
+                palette = CompactPalette(img, labels, palette.Count);
+        }
+
         // Run quality-gated region cleanup only after palette compaction and
         // JPEG-noise handling. Keep legacy output byte-for-byte unchanged by
         // default; never reassign transparency or alter large sharp regions.
@@ -166,7 +186,7 @@ public static class Tracer
         if (options.RegionMergeV1)
         {
             regionMerge = RegionMergeRefiner.Refine(img, labels, palette,
-                options.RegionMergeMaxAreaV1, ct);
+                options.RegionMergeMaxAreaV1, ct, protectedPixels);
             if (regionMerge.RelabeledPixels > 0)
                 palette = CompactPalette(img, labels, palette.Count);
         }
@@ -388,6 +408,9 @@ public static class Tracer
             TopologySeams = seamAudit,
             AntiAliasBands = antiAliasBands,
             AntiAliasBandsSkipped = aaSkipped,
+            V2DetailProtection = detailProtection,
+            V2Artifacts = v2Artifacts,
+            V2Skipped = v2Skipped,
             PaletteMs = paletteMs,
             SegmentMs = segmentMs,
             BoundaryMs = boundaryMs,
@@ -460,7 +483,7 @@ public static class Tracer
     }
 
     static List<PaletteEntry> MergeSimilarDisplays(
-        RasterImage img, int[] labels, List<PaletteEntry> palette, Lab[] tints, int w, int h, int minArea, CancellationToken ct)
+        RasterImage img, int[] labels, List<PaletteEntry> palette, Lab[] tints, int w, int h, int minArea, CancellationToken ct, bool[]? protectedPixels = null)
     {
         int n = palette.Count;
         if (n < 2) return palette;
@@ -501,8 +524,8 @@ public static class Tracer
         if (!merged && !anyKept) return palette;
         for (int i = 0; i < labels.Length; i++)
             if (labels[i] >= 0) labels[i] = Root(labels[i]);
-        if (anyKept) AbsorbTintSpecks(labels, kept, w, h, ct);
-        Segmenter.AbsorbSmallRegions(labels, w, h, minArea, ct);
+        if (anyKept) AbsorbTintSpecks(labels, kept, w, h, ct, protectedPixels);
+        Segmenter.AbsorbSmallRegions(labels, w, h, minArea, ct, protectedPixels);
         return CompactPalette(img, labels, n);
     }
 
@@ -513,7 +536,7 @@ public static class Tracer
     /// <see cref="NoiseEstimate.NoisyMinRegionArea"/> pixels go to the neighbour they share the
     /// longest border with, as their colour merged away before tints were anchored.
     /// </summary>
-    static void AbsorbTintSpecks(int[] labels, bool[] kept, int w, int h, CancellationToken ct)
+    static void AbsorbTintSpecks(int[] labels, bool[] kept, int w, int h, CancellationToken ct, bool[]? protectedPixels = null)
     {
         ct.ThrowIfCancellationRequested();
         var seg = Segmenter.Components(labels, w, h);
@@ -521,6 +544,10 @@ public static class Tracer
         var speck = new bool[rc];
         for (int r = 0; r < rc; r++)
             speck[r] = seg.RegionArea[r] < NoiseEstimate.NoisyMinRegionArea && kept[seg.RegionPalette[r]];
+        if (protectedPixels is not null)
+            for (int i = 0; i < protectedPixels.Length; i++)
+                if (protectedPixels[i] && seg.RegionId[i] >= 0)
+                    speck[seg.RegionId[i]] = false;
         var border = new Dictionary<(int Speck, int Label), int>();
         for (int i = 0; i < labels.Length; i++)
         {

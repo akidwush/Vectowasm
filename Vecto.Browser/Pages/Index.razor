@@ -121,6 +121,8 @@
                             <p class="help-text">Menggabungkan hanya fragmentasi kecil bila warna sumber dan batas mendukung. Ini terpisah dari Local Edge V3, tidak mengaktifkan otomatis.</p>
                             <label class="check-option"><input type="checkbox" @bind="antiAliasBandV1" disabled="@(running || loadingFile)" /> Anti-alias Aware Segmentation V1 (eksperimen)</label>
                             <p class="help-text">Mendeteksi pita warna transisi tipis yang tersisa di antara dua warna solid. Perlindungan warna asli, gradient lebar, dan transparansi; otomatis dilewati untuk input bertekstur / palet exact.</p>
+                            <label class="check-option"><input type="checkbox" @bind="edgeArtifactCleanupV2" disabled="@(running || loadingFile)" /> Edge Artifact Cleanup V2 (AA + JPEG ringing, uji)</label>
+                            <p class="help-text">Opt-in: proteksi highlight mata/stroke sebelum pembersihan region; hapus hanya pita AA terfragmentasi dan serpihan ringing yang didukung piksel sumber. Validasi topologi + rollback otomatis.</p>
                             <label class="check-option"><input type="checkbox" @bind="stackedLayerReasoningV1" disabled="@(running || loadingFile || shapeMode != ShapeMode.Stacked)" /> Stacked Layer Reasoning V1 (eksperimen)</label>
                             <p class="help-text">Khusus Bentuk Bertumpuk: menyusun layer berdasarkan hubungan tutup-menutup dan menggabungkan path sewarna. Otomatis memakai hasil Stacked biasa jika render pembanding berubah. Aktifkan Bentuk Bertumpuk terlebih dahulu.</p>
                             <label class="check-option"><input type="checkbox" @bind="topologySeamProtection" disabled="@(running || loadingFile || shapeMode != ShapeMode.Stacked || stackedLayerReasoningV1)" /> Topology-Aware Seam Protection (under-layer only, eksperimental)</label>
@@ -302,6 +304,7 @@
     private int seed = 1;
     private bool regionMergeV1;
     private bool antiAliasBandV1;
+    private bool edgeArtifactCleanupV2;
     private bool stackedLayerReasoningV1;
     private bool topologySeamProtection;
     private bool curveFitting = true;
@@ -455,6 +458,7 @@
         LocalEdgeRefinementV3 = enableV3,
         RegionMergeV1 = regionMergeV1,
         AntiAliasBandV1 = antiAliasBandV1,
+        EdgeArtifactCleanupV2 = edgeArtifactCleanupV2,
         StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked,
         EnableTopologySeamProtection = topologySeamProtection && shapeMode == ShapeMode.Stacked && !stackedLayerReasoningV1,
         TopologySeamBleedPx = 0.35

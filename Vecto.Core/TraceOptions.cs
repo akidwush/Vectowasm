@@ -60,6 +60,9 @@ public sealed class TraceOptions
     /// <summary>Experimental whole-band anti-alias segmentation; Blended & non-textured only.
     /// OFF by default to preserve every existing production SVG.</summary>
     public bool AntiAliasBandV1 { get; set; } = false;
+
+    /// <summary>Source-aware AA V2 + edge ringing cleanup (experimental, OFF).</summary>
+    public bool EdgeArtifactCleanupV2 { get; set; } = false;
     /// <summary>Experiment only. Source-aware merging of tiny colour-fringe regions before extracting boundaries.</summary>
     public bool RegionMergeV1 { get; set; } = false;
     /// <summary>Maximum area of a region eligible for guarded merge; 1..128.</summary>

@@ -22,7 +22,8 @@ public static class RegionMergeRefiner
 
     public static RegionMergeStats Refine(
         RasterImage image, int[] labels, IReadOnlyList<PaletteEntry> palette,
-        int maxArea = 24, CancellationToken cancellationToken = default)
+        int maxArea = 24, CancellationToken cancellationToken = default,
+        bool[]? protectedPixels = null)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentNullException.ThrowIfNull(labels);
@@ -44,6 +45,14 @@ public static class RegionMergeRefiner
         var eligible = new bool[rc];
         for (int r = 0; r < rc; r++)
             eligible[r] = seg.RegionArea[r] <= maxArea;
+        if (protectedPixels is not null)
+        {
+            if (protectedPixels.Length != labels.Length)
+                throw new ArgumentException("Protection dimensions mismatch.", nameof(protectedPixels));
+            for (int i = 0; i < protectedPixels.Length; i++)
+                if (protectedPixels[i] && seg.RegionId[i] >= 0)
+                    eligible[seg.RegionId[i]] = false;
+        }
         if (!eligible.Any(x => x))
             return new RegionMergeStats(rc, rc, 0, 0);
 

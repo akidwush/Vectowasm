@@ -264,9 +264,11 @@ internal static class Segmenter
     /// at all (e.g. it covers the whole image) falls back to -1.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public static void AbsorbSmallRegions(int[] labels, int w, int h, int minArea, CancellationToken ct)
+    public static void AbsorbSmallRegions(int[] labels, int w, int h, int minArea, CancellationToken ct, bool[]? protectedPixels = null)
     {
         if (minArea <= 1) return;
+        if (protectedPixels is not null && protectedPixels.Length != labels.Length)
+            throw new ArgumentException("Detail-protection dimensions mismatch.", nameof(protectedPixels));
         const int passes = 10;
         var regionId = new int[w * h];
         var stack = new int[w * h];
@@ -287,8 +289,16 @@ internal static class Segmenter
             var (areas, palette) = ConnectedComponents(labels, w, h, regionId, stack);
             int rc = areas.Count;
             var small = new List<int>();
+            bool[]? protectedRegions = null;
+            if (protectedPixels is not null)
+            {
+                protectedRegions = new bool[rc];
+                for (int i = 0; i < regionId.Length; i++)
+                    if (protectedPixels[i] && regionId[i] >= 0)
+                        protectedRegions[regionId[i]] = true;
+            }
             for (int r = 0; r < rc; r++)
-                if (areas[r] < minArea) small.Add(r);
+                if (areas[r] < minArea && (protectedRegions is null || !protectedRegions[r])) small.Add(r);
             if (small.Count == 0) return;
 
             // pixels of every small region in ascending order, packed into one array
