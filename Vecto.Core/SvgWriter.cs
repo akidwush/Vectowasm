@@ -33,17 +33,26 @@ public static class SvgWriter
             // Optional internal underpaint is emitted AFTER its back region
             // but BEFORE the as-yet-unpainted front region. Main paths do not
             // receive stroke or geometry changes. No global micro-stroke.
-            foreach (var seam in region.SeamUnderpaints)
+            // Batch all safe seam runs with identical width and back colour
+            // into ONE compound open-path. Disjoint runs begin with 'M'
+            // (never 'Z'), preserving draw order and individual geometry.
+            if (region.SeamUnderpaints.Count > 0)
             {
-                if (seam.Curves.Count == 0) continue;
-                sb.Append("<path data-seam-underpaint=\"1\" fill=\"none\" stroke=\"#")
-                  .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
-                  .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
-                  .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
-                  .Append("\" stroke-width=\"").Append(F(seam.StrokeWidth))
-                  .Append("\" stroke-linecap=\"butt\" stroke-linejoin=\"round\" d=\"");
-                AppendUnderpaint(sb, seam.Curves);
-                sb.Append("\" />\n");
+                var byWidth = region.SeamUnderpaints
+                    .Where(seam => seam.Curves.Count > 0)
+                    .GroupBy(seam => seam.StrokeWidth);
+                foreach (var group in byWidth)
+                {
+                    sb.Append("<path data-seam-underpaint=\"1\" fill=\"none\" stroke=\"#")
+                      .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
+                      .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
+                      .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
+                      .Append("\" stroke-width=\"").Append(F(group.Key))
+                      .Append("\" stroke-linecap=\"butt\" stroke-linejoin=\"round\" d=\"");
+                    foreach (var seam in group)
+                        AppendUnderpaint(sb, seam.Curves);
+                    sb.Append("\" />\\n");
+                }
             }
         }
         sb.Append("</svg>\n");
