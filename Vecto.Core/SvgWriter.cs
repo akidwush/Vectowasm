@@ -17,7 +17,12 @@ public static class SvgWriter
         sb.Append("<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n");
         sb.Append("<svg width=\"").Append(doc.Width).Append("pt\" height=\"").Append(doc.Height)
           .Append("pt\" viewBox=\"0 0 ").Append(doc.Width).Append(' ').Append(doc.Height)
-          .Append("\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n");
+          .Append("\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\"");
+        // Inherit shared helper style from the root only when seam helpers exist.
+        // The flag-OFF root and all main region path tags remain untouched.
+        if (doc.Regions.Any(r => r.SeamUnderpaints.Count > 0))
+            sb.Append(" fill=\"none\" stroke-linejoin=\"round\"");
+        sb.Append(">\n");
         // Both modes emit direct, independent SVG paths. Stacked rendering
         // relies on the order of these paths, not an SVG <g> wrapper.
         foreach (var region in doc.Regions)
@@ -43,12 +48,12 @@ public static class SvgWriter
                     .GroupBy(seam => seam.StrokeWidth);
                 foreach (var group in byWidth)
                 {
-                    sb.Append("<path data-seam=\"1\" fill=\"none\" stroke=\"#")
+                    sb.Append("<path data-seam=\"1\" stroke=\"#")
                       .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
                       .Append("\" stroke-width=\"").Append(F1(group.Key))
-                      .Append("\" stroke-linejoin=\"round\" d=\"");
+                      .Append("\" d=\"");
                     var pen = new Vec2(0, 0);
                     foreach (var seam in group)
                         pen = AppendUnderpaint(sb, seam.Curves, pen);
