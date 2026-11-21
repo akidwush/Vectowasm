@@ -43,12 +43,12 @@ public static class SvgWriter
                     .GroupBy(seam => seam.StrokeWidth);
                 foreach (var group in byWidth)
                 {
-                    sb.Append("<path data-seam-underpaint=\"1\" fill=\"none\" stroke=\"#")
+                    sb.Append("<path data-seam=\"1\" fill=\"none\" stroke=\"#")
                       .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
                       .Append("\" stroke-width=\"").Append(Compact(group.Key))
-                      .Append("\" stroke-linecap=\"butt\" stroke-linejoin=\"round\" d=\"");
+                      .Append("\" stroke-linejoin=\"round\" d=\"");
                     foreach (var seam in group)
                         AppendUnderpaint(sb, seam.Curves);
                     sb.Append("\" />\n");
@@ -78,18 +78,21 @@ public static class SvgWriter
 
     private static void AppendUnderpaint(StringBuilder sb, IReadOnlyList<CubicBezier> curves)
     {
+        // SVG commands separate numbers without extra whitespace; this is
+        // lexically equivalent to the original two-decimal auxiliary geometry.
+        // Main region path serialization remains byte-for-byte untouched.
         var first = curves[0];
-        sb.Append(" M ").Append(Compact(first.P0.X)).Append(' ').Append(Compact(first.P0.Y));
+        sb.Append('M').Append(Compact(first.P0.X)).Append(' ').Append(Compact(first.P0.Y));
         foreach (var seg in curves)
         {
             if (seg.IsLine())
-                sb.Append(" L ").Append(Compact(seg.P3.X)).Append(' ').Append(Compact(seg.P3.Y));
+                sb.Append('L').Append(Compact(seg.P3.X)).Append(' ').Append(Compact(seg.P3.Y));
             else
-                sb.Append(" C ").Append(Compact(seg.P1.X)).Append(' ').Append(Compact(seg.P1.Y)).Append(' ')
+                sb.Append('C').Append(Compact(seg.P1.X)).Append(' ').Append(Compact(seg.P1.Y)).Append(' ')
                   .Append(Compact(seg.P2.X)).Append(' ').Append(Compact(seg.P2.Y)).Append(' ')
                   .Append(Compact(seg.P3.X)).Append(' ').Append(Compact(seg.P3.Y));
         }
-        // Intentionally NO Z: closing the auxiliary path would create a new seam.
+        // Never close an auxiliary open path: no extra connecting seam.
     }
 
     static string F(double v) => v.ToString("0.00", CultureInfo.InvariantCulture);
