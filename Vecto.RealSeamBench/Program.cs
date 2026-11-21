@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Vecto.Core;
