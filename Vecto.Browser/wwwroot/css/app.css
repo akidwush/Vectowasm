@@ -204,3 +204,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 /* The original IMG-based transform is intentionally not used by the
  * replacement canvas/native SVG layers. No giant GPU texture at 1000x.
  */
+
+/* Native Windows/macOS file drop: no giant overlay canvas, no thumbnail decoding
+   outside Blazor's existing size/type checks. Upload button remains accessible. */
+.app-desktop{position:relative}
+.file-dropzone{border:2px dashed #7395ba;background:#f4f8fd;padding:13px 11px;min-width:0}
+.file-dropzone-heading{font-size:12px;font-weight:800;color:#245887}
+.file-dropzone-hint{font-size:11px;color:#607792;line-height:1.5;margin:5px 0 12px}
+.file-dropzone input[type=file]{width:100%;max-width:100%}
+.desktop-file-overlay{display:none;position:fixed;inset:12px;z-index:9999;pointer-events:none;border:4px dashed #245c9b;background:rgba(232,241,253,.92);align-items:center;justify-content:center;padding:24px}
+.desktop-file-overlay span{max-width:420px;text-align:center;font-size:19px;line-height:1.5;color:#194b83;font-weight:800;background:#fff;border:1px solid #7aa3cb;padding:18px 24px}
+.app-desktop.has-file-drag .desktop-file-overlay{display:flex}
+.app-desktop.has-file-drag .file-dropzone{background:#e1f0ff;border-color:#235ca4}
+@media(max-width:580px){.desktop-file-overlay span{font-size:14px}.file-dropzone{padding:10px}}

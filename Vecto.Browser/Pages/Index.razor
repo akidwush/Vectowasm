@@ -5,7 +5,8 @@
 
 <PageTitle>DikaTrace — Image to SVG</PageTitle>
 
-<div class="app-desktop">
+<div class="app-desktop" @ref="appRoot">
+    <div class="desktop-file-overlay" aria-hidden="true"><span>Lepaskan gambar di sini untuk membuka di DikaTrace</span></div>
     <header class="site-header">
         <div class="brand">
             <span class="brand-initial" aria-hidden="true">D</span>
@@ -38,7 +39,11 @@
             <section class="control-panel" aria-labelledby="load-heading">
                 <div class="panel-heading"><span class="step-index">1</span><h2 id="load-heading">Pilih gambar</h2></div>
                 <div class="panel-body">
-                    <InputFile @key="fileInputKey" OnChange="LoadFile" accept=".png,.jpg,.jpeg,.webp,.bmp" aria-label="Pilih gambar PNG JPG WebP atau BMP" />
+                    <div class="file-dropzone" data-vecto-file-dropzone>
+                        <div class="file-dropzone-heading">Tarik gambar dari PC ke sini</div>
+                        <p class="file-dropzone-hint">Lepaskan file di area mana pun pada DikaTrace, atau pilih lewat tombol di bawah.</p>
+                        <InputFile @key="fileInputKey" OnChange="LoadFile" disabled="@(running || loadingFile)" accept=".png,.jpg,.jpeg,.webp,.bmp" aria-label="Pilih atau tarik gambar PNG JPG WebP atau BMP" />
+                    </div>
                     <p class="help-text">PNG, JPG, WebP, BMP · Maksimum 20 MB / 8 MP<br/>Piksel dibersihkan otomatis sebelum tracing</p>
                     @if (!string.IsNullOrEmpty(inputUrl))
                     {
@@ -287,6 +292,7 @@
     private int previewSession;
     private bool showDiagnostics;
     private int fileInputKey;
+    private ElementReference appRoot;
     private ImageStyle style = ImageStyle.Auto;
     private ShapeMode shapeMode = ShapeMode.Planar;
     private DetailLevel detail = DetailLevel.Medium;
@@ -302,6 +308,12 @@
     private bool ekstraceAreaInversion = true;
     private bool optimizeNodes = true;
     private double polygonEpsilon = -1;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await Js.InvokeVoidAsync("vectoDrop.mount", appRoot);
+    }
 
     private async Task ResetAsync()
     {
@@ -689,6 +701,7 @@
     {
         try
         {
+            await Js.InvokeVoidAsync("vectoDrop.dispose", appRoot);
             await ClearUrl(true);
             await ClearUrl(false);
             await ClearAlternateUrl();
