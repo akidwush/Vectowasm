@@ -1,0 +1,48 @@
+name: Real Tiger Seam Protection Benchmark
+on:
+  pull_request:
+    paths:
+      - 'Vecto.Core/**'
+      - 'Vecto.RealSeamBench/**'
+      - 'tests/benchmark_real_tiger.py'
+      - 'tests/fixtures/tiger_source_user.svg'
+      - '.github/workflows/real-tiger-seam-benchmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-tiger-seam-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent SVG + image metrics
+        run: python -m pip install 'CairoSVG==2.8.2' 'Pillow==12.0.0' 'numpy==2.2.6' 'scikit-image==0.25.2'
+      - name: Prepare exact same RGBA raster from user tiger illustration
+        run: python tests/benchmark_real_tiger.py prepare
+      - name: Compile real-image runner
+        run: dotnet build Vecto.RealSeamBench/Vecto.RealSeamBench.csproj -c Release
+      - name: Run Stacked OFF vs ON on real tiger image
+        run: |
+          dotnet run --project Vecto.RealSeamBench/Vecto.RealSeamBench.csproj -c Release --no-build -- \
+            tiger-benchmark-input/tiger_rgba_512.bin 512 512 tiger-benchmark-output
+      - name: Compare 100%, 200%, 400% SSIM, IoU, seam and thin-detail leakage
+        run: python tests/benchmark_real_tiger.py report tiger-benchmark-output
+      - name: Archive SVGs, visual side-by-side HTML, PNG comparisons and metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiger-stacked-off-vs-seam-on-browser-inspection
+          path: |
+            tiger-benchmark-output/**
+            tiger-benchmark-input/tiger_input_512.png
+          if-no-files-found: warn
+          compression-level: 6
