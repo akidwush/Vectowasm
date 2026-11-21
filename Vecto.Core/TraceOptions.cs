@@ -67,6 +67,10 @@ public sealed class TraceOptions
     /// <summary>Experimental: compact compatible Stacked shapes into fewer paint layers.
     /// Requires ShapeMode.Stacked; preserves the default path structure when false.</summary>
     public bool StackedLayerReasoningV1 { get; set; } = false;
+    /// <summary>Stacked-only experiment: paint a narrow seam filler with the BACK region colour before the FRONT region.</summary>
+    public bool EnableTopologySeamProtection { get; set; } = false;
+    /// <summary>How far the under-layer extends into the upper layer (px); 0.30..0.50.</summary>
+    public double TopologySeamBleedPx { get; set; } = 0.35;
     /// <summary>Polygon-mode simplification tolerance; negative → derive from Detail, 0 → exact lattice polygons.</summary>
     public double PolygonEpsilon { get; set; } = -1;
     public int Seed { get; set; } = 1;
