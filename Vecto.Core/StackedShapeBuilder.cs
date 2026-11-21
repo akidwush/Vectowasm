@@ -170,7 +170,8 @@ internal static class StackedShapeBuilder
             // experimental layer combiner merges region identities and its
             // output is intentionally excluded until a proven ordering map exists.
             var augmented = TopologySeamProtection.Attach(result, seg, graph,
-                ordered, frontOf, seamBleedPx, planar.Width, planar.Height, ct,
+                ordered, frontOf, r => planar.Palette[seg.RegionPalette[r]].Color,
+                seamBleedPx, planar.Width, planar.Height, ct,
                 out var seamStats);
             onSeamAudit?.Invoke(seamStats);
             return Wrap(augmented);
