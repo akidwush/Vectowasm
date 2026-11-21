@@ -41,6 +41,10 @@ public sealed class TraceOptions
     public BezierOptimizationMode BezierMode { get; set; } = BezierOptimizationMode.GlobalDp;
     /// <summary>Opt-in alternative for fitting shared contour chains; Original is unchanged.</summary>
     public ContourFittingEngine ContourFittingEngine { get; set; } = ContourFittingEngine.Original;
+    /// <summary>Opt-in inverse unit-pixel coverage for Ekstracev1 only. Original/V3 unaffected.</summary>
+    public bool EkstraceInverseAreaV1 { get; set; } = false;
+    /// <summary>Maximum perpendicular sub-pixel movement per sample; 0.05..0.35.</summary>
+    public double EkstraceInverseAreaMaxShift { get; set; } = 0.25;
     /// <summary>Experimental edge-coverage isovalue; default 0.5 retains the production behavior.</summary>
     public double EdgeCoverageThreshold { get; set; } = 0.5;
     /// <summary>Optional source RGBA for sub-pixel sampling only. Null uses tracing raster (production behavior).</summary>

@@ -151,4 +151,161 @@ var bigChain = Enumerable.Range(0, 4100).Select(x => new Vec2(x, 10)).ToList();
 _ = EkstraceV1Fitter.FitChain(bigChain, false, new List<int>(), 0.25, out bool usedFallback);
 Check(usedFallback, "Large chain fallback is explicitly reported");
 
+// Stage 7: independently verify inverse unit-pixel area, colour unmixing,
+// bounded correction, corner locking, and Original-mode isolation.
+foreach (var normal in new[]
+{
+    new Vec2(1, 0), new Vec2(0, 1),
+    new Vec2(.6, .8), new Vec2(Math.Sqrt(.5), Math.Sqrt(.5))
+})
+{
+    double h = (Math.Abs(normal.X) + Math.Abs(normal.Y)) / 2;
+    for (int k = -18; k <= 18; k++)
+    {
+        double d = h * k / 20;
+        double alpha = EkstraceInverseArea.PixelCoverage(d, normal.X, normal.Y);
+        double recovered = EkstraceInverseArea.SignedDistance(alpha, normal.X, normal.Y);
+        Check(Math.Abs(recovered - d) < 1e-9,
+            "Inverse pixel-square area roundtrip");
+    }
+}
+Check(Math.Abs(EkstraceInverseArea.SrgbToLinear(0)) < 1e-10 &&
+      Math.Abs(EkstraceInverseArea.SrgbToLinear(255) - 1) < 1e-10,
+    "Exact sRGB transfer endpoints");
+
+var fg = new Rgba32(38, 157, 70, 255);
+var bg = new Rgba32(240, 240, 240, 255);
+static Rgba32 MixSrgb(Rgba32 a, Rgba32 b, double fraction) =>
+    new((byte)Math.Round(a.R * fraction + b.R * (1 - fraction)),
+        (byte)Math.Round(a.G * fraction + b.G * (1 - fraction)),
+        (byte)Math.Round(a.B * fraction + b.B * (1 - fraction)), 255);
+var mixed = MixSrgb(fg, bg, .37);
+var projected = EkstraceInverseArea.Project(mixed, fg, bg, false);
+Check(Math.Abs(projected.Alpha - .37) < .01 &&
+      projected.RelativeResidual < .001,
+    "sRGB colour projection recovers coverage");
+
+static byte FromLinear(double v)
+{
+    v = Math.Clamp(v, 0, 1);
+    double srgb = v <= .0031308 ? 12.92 * v : 1.055 * Math.Pow(v, 1 / 2.4) - .055;
+    return (byte)Math.Round(Math.Clamp(srgb * 255, 0, 255));
+}
+var inkA = new Rgba32(31, 197, 45, 255);
+var inkB = new Rgba32(247, 49, 215, 255);
+var linearMix = new Rgba32(
+    FromLinear(.4 * EkstraceInverseArea.SrgbToLinear(inkA.R) +
+                  .6 * EkstraceInverseArea.SrgbToLinear(inkB.R)),
+    FromLinear(.4 * EkstraceInverseArea.SrgbToLinear(inkA.G) +
+                  .6 * EkstraceInverseArea.SrgbToLinear(inkB.G)),
+    FromLinear(.4 * EkstraceInverseArea.SrgbToLinear(inkA.B) +
+                  .6 * EkstraceInverseArea.SrgbToLinear(inkB.B)), 255);
+var linearPrediction = EkstraceInverseArea.Project(linearMix, inkA, inkB, true);
+var srgbPrediction = EkstraceInverseArea.Project(linearMix, inkA, inkB, false);
+Check(Math.Abs(linearPrediction.Alpha - .4) < .02 &&
+      linearPrediction.RelativeResidual < srgbPrediction.RelativeResidual,
+    "Linear-light colour projection favoured for linear blends");
+
+// Supersampling in this fixture is deliberately independent of
+// EkstraceInverseArea.PixelCoverage, so this is not a tautological test.
+const int fixtureSize = 64;
+const int supersamples = 20;
+Vec2 lineNormal = new(.6, .8), lineTangent = new(-.8, .6);
+Vec2 lineOrigin = new(32, 32);
+var antialiased = new RasterImage(fixtureSize, fixtureSize);
+for (int y = 0; y < fixtureSize; y++)
+for (int x = 0; x < fixtureSize; x++)
+{
+    int positive = 0;
+    for (int sy = 0; sy < supersamples; sy++)
+    for (int sx = 0; sx < supersamples; sx++)
+    {
+        var delta = new Vec2(x + (sx + .5) / supersamples - lineOrigin.X,
+                             y + (sy + .5) / supersamples - lineOrigin.Y);
+        if (delta.Dot(lineNormal) >= 0) positive++;
+    }
+    antialiased.SetPixel(x, y, MixSrgb(fg, bg,
+        positive / (double)(supersamples * supersamples)));
+}
+var displaced = Enumerable.Range(-10, 21)
+    .Select(i => lineOrigin + lineTangent * (1.3 * i) + lineNormal * .18)
+    .ToList();
+var beforeMove = displaced.ToArray();
+var inversion = EkstraceInverseArea.Refine(displaced, false,
+    Array.Empty<int>(), antialiased, fg, bg, .25);
+Check(inversion.EligiblePoints > 0 && inversion.MovedPoints >= 3,
+    "Inverse pixel area moves smooth uncertain contour samples");
+double beforeError = 0, afterError = 0;
+for (int i = 3; i < displaced.Count - 3; i++)
+{
+    beforeError += Math.Abs((beforeMove[i] - lineOrigin).Dot(lineNormal));
+    afterError += Math.Abs((displaced[i] - lineOrigin).Dot(lineNormal));
+}
+Check(afterError < beforeError * .75,
+    "Inverse-area refinement reduces independently known position error");
+Check(displaced[0] == beforeMove[0] &&
+      displaced[^1] == beforeMove[^1],
+    "Open chain junction endpoints remain exact");
+Check(displaced.Zip(beforeMove).All(v => (v.First - v.Second).Length <= .2500001),
+    "No point exceeds the 0.25px movement bound");
+var protectedPoints = beforeMove.ToList();
+_ = EkstraceInverseArea.Refine(protectedPoints, false,
+    new[] { 10 }, antialiased, fg, bg, .25);
+Check(Enumerable.Range(8, 5).All(k => protectedPoints[k] == beforeMove[k]),
+    "Protected corner and its immediate shoulders remain pinned");
+
+// Input without visible antialias should not be shifted just to force
+// differences between the engines.
+var hardEdge = new RasterImage(64, 64);
+for (int y = 0; y < 64; y++)
+for (int x = 0; x < 64; x++)
+    hardEdge.SetPixel(x, y, x >= 32 ? fg : bg);
+var hardPoints = Enumerable.Range(0, 25)
+    .Select(y => new Vec2(32, y + 15)).ToList();
+var hardBefore = hardPoints.ToArray();
+var hardStats = EkstraceInverseArea.Refine(hardPoints, false,
+    Array.Empty<int>(), hardEdge, fg, bg, .25);
+Check(hardStats.MovedPoints == 0 &&
+      hardPoints.SequenceEqual(hardBefore),
+    "Hard two-colour edge has no invented anti-alias shift");
+
+// Original mode must remain entirely byte-identical if its option is
+// mistakenly set, since the experimental solver runs ONLY in Ekstracev1.
+var originalOptionsUnchanged = new TraceOptions
+{
+    Style = ImageStyle.Crisp, PaletteMode = PaletteMode.FixedCount,
+    ColorCount = 2, OptimizeNodes = false, ContourFittingEngine = ContourFittingEngine.Original
+};
+var originalOptionsExperimentalFlag = new TraceOptions
+{
+    Style = ImageStyle.Crisp, PaletteMode = PaletteMode.FixedCount,
+    ColorCount = 2, OptimizeNodes = false, ContourFittingEngine = ContourFittingEngine.Original,
+    EkstraceInverseAreaV1 = true
+};
+var unchangedTrace = Tracer.Trace(antialiased, originalOptionsUnchanged);
+var optInIgnored = Tracer.Trace(antialiased, originalOptionsExperimentalFlag);
+Check(SvgWriter.Write(unchangedTrace.Document) ==
+      SvgWriter.Write(optInIgnored.Document) &&
+      optInIgnored.Diagnostics.InverseAreaMovedPoints == 0,
+    "Original engine is byte-identical even when experimental area flag is set");
+
+var areaOptIn = new TraceOptions
+{
+    Style = ImageStyle.Blended, PaletteMode = PaletteMode.FixedCount,
+    ColorCount = 2, OptimizeNodes = false,
+    ContourFittingEngine = ContourFittingEngine.Ekstracev1,
+    EkstraceInverseAreaV1 = true
+};
+var fullAreaTrace = Tracer.Trace(antialiased, areaOptIn);
+Check(fullAreaTrace.Diagnostics.EkstraceV1Chains > 0 &&
+      fullAreaTrace.Diagnostics.InverseAreaEligiblePoints >=
+      fullAreaTrace.Diagnostics.InverseAreaMovedPoints &&
+      fullAreaTrace.Diagnostics.InverseAreaMovedPoints ==
+      fullAreaTrace.Diagnostics.InverseAreaSrgbPoints +
+      fullAreaTrace.Diagnostics.InverseAreaLinearPoints,
+    "End-to-end Ekstracev1 trace reports truthful area-inversion diagnostics");
+Check(SvgWriter.Write(fullAreaTrace.Document) ==
+      SvgWriter.Write(Tracer.Trace(antialiased, areaOptIn).Document),
+    "Inverse-area mode yields deterministic end-to-end SVG output");
+
 Console.WriteLine("Ekstracev1 integration smoke checks complete.");

@@ -98,15 +98,20 @@
                         <select id="edge-engine" @bind="engineMode" disabled="@(running || loadingFile)">
                             <option value="Original">Original — stabil</option>
                             <option value="V3">Local Edge V3 — aktifkan</option>
-                            <option value="Ekstracev1">Ekstracev1 — Bézier G1 (eksperimental)</option>
+                            <option value="Ekstracev1">Ekstracev1 — Bézier G1 + Subpixel Area (eksperimental)</option>
                             <option value="CompareEkstrace">Bandingkan A/B — Original vs Ekstracev1</option>
                             <option value="Compare">Bandingkan A/B — Original vs V3</option>
                         </select>
-                        <p>Original tetap default. V3 mengoreksi posisi tepi; Ekstracev1 memakai fitting Bézier mandiri pada shared boundary yang sama. A/B tersedia untuk Original vs V3 maupun Original vs Ekstracev1. Perbedaan hasil tidak otomatis berarti kualitas lebih tinggi.</p>
+                        <p>Original tetap default. Ekstracev1 bisa melakukan inversi luas piksel anti-alias sebelum fitting Bézier. A/B membandingkan Original dengan Ekstracev1 pada gambar yang sama; hasil berbeda belum tentu lebih akurat.</p>
                     </div>
                     <details class="advanced-options">
                         <summary>Pengaturan lanjutan</summary>
                         <div class="advanced-inside">
+                            @if (engineMode is "Ekstracev1" or "CompareEkstrace")
+                            {
+                                <label class="check-option"><input type="checkbox" @bind="ekstraceAreaInversion" disabled="@(running || loadingFile || !curveFitting)" /> Ekstracev1 — Inverse Pixel-Area Subpixel (uji, aktif default khusus Ekstracev1)</label>
+                                <p class="help-text">Refinement opsional pada shared-edge. Mengestimasi coverage dua warna sRGB/linear dan menginversi luas kotak piksel. Sudut dan junction tetap dikunci; koreksi ditolak bila tidak meyakinkan. Perpindahan maksimum 0,25 px. Original dan V3 tidak berubah.</p>
+                            }
                             <label class="check-option"><input type="checkbox" @bind="regionMergeV1" disabled="@(running || loadingFile)" /> Region Merge V1 (eksperimen, opt-in)</label>
                             <p class="help-text">Menggabungkan hanya fragmentasi kecil bila warna sumber dan batas mendukung. Ini terpisah dari Local Edge V3, tidak mengaktifkan otomatis.</p>
                             <label class="check-option"><input type="checkbox" @bind="antiAliasBandV1" disabled="@(running || loadingFile)" /> Anti-alias Aware Segmentation V1 (eksperimen)</label>
@@ -171,6 +176,10 @@
                                                 <tr><td>Kontur diproses Ekstrace</td><td>0</td><td>@v3Diagnostics.EkstraceV1Chains</td></tr>
                                                 <tr><td>Fallback ke Original</td><td>0</td><td>@v3Diagnostics.EkstraceV1OriginalFallbackChains</td></tr>
                                                 <tr><td>Kontur kurva Ekstrace</td><td>0</td><td>@v3Diagnostics.EkstraceV1CurvedChains</td></tr>
+                                                <tr><td>Subpixel kandidat</td><td>0</td><td>@v3Diagnostics.InverseAreaEligiblePoints</td></tr>
+                                                <tr><td>Subpixel digeser</td><td>0</td><td>@v3Diagnostics.InverseAreaMovedPoints</td></tr>
+                                                <tr><td>Subpixel ditolak</td><td>0</td><td>@v3Diagnostics.InverseAreaRejectedPoints</td></tr>
+                                                <tr><td>Model warna sRGB / linear</td><td>—</td><td>@v3Diagnostics.InverseAreaSrgbPoints / @v3Diagnostics.InverseAreaLinearPoints</td></tr>
                                             }
                                             @if (pixelAudit is not null)
                                             {
@@ -287,6 +296,7 @@
     private bool antiAliasBandV1;
     private bool stackedLayerReasoningV1;
     private bool curveFitting = true;
+    private bool ekstraceAreaInversion = true;
     private bool optimizeNodes = true;
     private double polygonEpsilon = -1;
 
@@ -423,6 +433,8 @@
         CurveFitting = curveFitting,
         OptimizeNodes = optimizeNodes && !enableEkstrace,
         ContourFittingEngine = enableEkstrace ? ContourFittingEngine.Ekstracev1 : ContourFittingEngine.Original,
+        EkstraceInverseAreaV1 = enableEkstrace && ekstraceAreaInversion,
+        EkstraceInverseAreaMaxShift = 0.25,
         PolygonEpsilon = polygonEpsilon,
         EdgeCoverageThreshold = 0.5,
         LocalEdgeRefinementV3 = enableV3,
@@ -559,7 +571,7 @@
                     : $" · Stacked Layer V1: -{traced.Diagnostics.StackedLayers.PathsSaved:N0} path / {traced.Diagnostics.StackedLayers.ComparedPixels:N0} piksel diverifikasi"
                 : "";
             string v3Info = useEkstrace
-                ? $" · Ekstracev1 {traced.Diagnostics.EkstraceV1Chains - traced.Diagnostics.EkstraceV1OriginalFallbackChains}/{traced.Diagnostics.EkstraceV1Chains} kontur lewat fitter; fallback Original {traced.Diagnostics.EkstraceV1OriginalFallbackChains}; kontur kurva {traced.Diagnostics.EkstraceV1CurvedChains}"
+                ? $" · Ekstracev1 {traced.Diagnostics.EkstraceV1Chains - traced.Diagnostics.EkstraceV1OriginalFallbackChains}/{traced.Diagnostics.EkstraceV1Chains} kontur lewat fitter; fallback Original {traced.Diagnostics.EkstraceV1OriginalFallbackChains}; kontur kurva {traced.Diagnostics.EkstraceV1CurvedChains}; inverse-area {(traceOptions.EkstraceInverseAreaV1 ? "ON" : "OFF")}: {traced.Diagnostics.InverseAreaMovedPoints}/{traced.Diagnostics.InverseAreaEligiblePoints} titik dipindah (ditolak {traced.Diagnostics.InverseAreaRejectedPoints}; sRGB {traced.Diagnostics.InverseAreaSrgbPoints}, linear {traced.Diagnostics.InverseAreaLinearPoints})"
                 : useV3
                     ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
                     : " · Engine Original";
@@ -603,7 +615,7 @@
             status = compare
                 ? $"A/B {primaryEngineName} vs Original selesai; lihat perbedaan hash dan bentuk di bawah."
                 : useEkstrace
-                    ? $"Ekstracev1 selesai: {traced.Diagnostics.EkstraceV1Chains - traced.Diagnostics.EkstraceV1OriginalFallbackChains} kontur oleh Ekstrace, {traced.Diagnostics.EkstraceV1OriginalFallbackChains} fallback Original."
+                    ? $"Ekstracev1 selesai: {traced.Diagnostics.EkstraceV1Chains - traced.Diagnostics.EkstraceV1OriginalFallbackChains} kontur fitting, {traced.Diagnostics.InverseAreaMovedPoints} titik inverse-area bergeser, {traced.Diagnostics.EkstraceV1OriginalFallbackChains} fallback Original."
                     : useV3
                         ? $"Local Edge V3 selesai: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser."
                         : "SVG Original selesai dibuat.";

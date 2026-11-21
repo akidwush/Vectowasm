@@ -68,3 +68,39 @@ The updated trace diagnostics count:
 These counts are not image-fidelity scores. A nonzero `EkstraceV1Chains` with all fallbacks, or with only straight segments, explains why two SVG outputs might be identical without implying the selector is disconnected. Hash inequality proves different bytes, not improved vector accuracy. Curved-image CI fixtures now assert that the new fitter genuinely changes geometry on at least one representative image; they intentionally do not require a difference for every image.
 
 Known fallback conditions include unusually long chains (>4096 points) and very short closed contours. Such cases need separate bounded optimization work; they cannot be honestly represented as an independent Ekstrace result.
+
+## Inverse Pixel-Area Subpixel V1 (new experimental refinement)
+
+Ekstracev1 can now enable `EkstraceInverseAreaV1`. The Blazor **Advanced Settings** toggle is ON by default *only when Ekstracev1 or its A/B comparison is selected*; the `TraceOptions` library default remains OFF. Both Original and Local Edge V3 retain their previous byte-level execution route, independent of this flag. The new solver runs AFTER existing smoothing and subpixel processing, before the Ekstracev1 cubic fitter, once per shared boundary chain.
+
+### Mathematical model
+
+For two **opaque** palette inks A (left) and B (right), observations are projected onto their colour axis. We examine both sRGB and the exact sRGB transfer function into linear light; a lower normalised off-axis colour residual favours linear light only if evidence is sufficiently decisive. Grayscale/two-colour observations often cannot identify the true blending space; those default to sRGB. This is a heuristic, not proof of the renderer's alpha compositing mode.
+
+A unit square pixel under locally straight boundary normal `n` has coverage `F(d)`, where `d` is the signed distance of the pixel **centre into ink A** from the line. Let `a=max(abs(nx),abs(ny))`, `b=min(...)` for unit-length normal, `h=(a+b)/2`, `k=(a-b)/2`:
+
+- `d < -k`: `F(d)=(d+h)^2/(2ab)`
+- `-k <= d <= k`: `F(d)=1/2+d/a`
+- `d > k`: `F(d)=1-(h-d)^2/(2ab)`
+
+with clipping outside `[-h,h]` and a rectangular limiting case for `b=0`. The exact inverse is supplied by `EkstraceInverseArea.SignedDistance`.
+
+Samples from up to a 5×5 pixel neighbourhood are collected on a short, nearly straight portion of the chain. Each valid mixed pixel implies a 1D shift `normal · (pixelCenter - currentPoint) - F^{-1}(alpha)`. The solver rejects inconsistent shifts, two-colour projection failures, weak edge orientation, corner-neighbours and open-chain junction-neighbours. A bounded 1D search minimises area-forward-model coverage residual plus small drift penalty, and accepts a shift only if its objective is measurably better.
+
+### Guards and audit
+
+- Input with no reliable mixed pixels, gradients, or with ambiguous third-colour contamination is left unchanged.
+- Both neighbours must be opaque and sufficiently different in colour; transparent edges are deliberately out of scope.
+- Structural corners (plus ±2 vertices), endpoint junctions and their immediate neighbours never move.
+- Max normal displacement is `0.25 px` from Blazor UI; lower-level parameter must be within `0.05..0.35 px`.
+- The shared-edge graph is unchanged; the same fitted contour is re-used by adjacent regions. This does not prove that every possible geometric near-crossing is prevented; keep using boundary/raster fidelity tests.
+- Counters: `InverseAreaEligiblePoints`, `InverseAreaMovedPoints`, `InverseAreaRejectedPoints`, `InverseAreaSrgbPoints` and `InverseAreaLinearPoints`. No positive count is guaranteed on flat, aliased input or when the previous subpixel stage has already converged.
+
+```bash
+dotnet run --project Ekstracev1.Tests/Ekstracev1.Tests.csproj -c Release
+dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+```
+
+Tests include formula roundtrips, exact transfer endpoints, synthetic sRGB/linear blending, independent supersampled anti-alias raster, corner and endpoint pinning, maximum displacement, edge-without-AA no-op, deterministic SVG, and byte parity for Original mode.
+
+**Limitation:** This is not Vector Magic's verified original subpixel algorithm, nor does coverage inversion by itself improve colour segmentation or semantic shape structure. The forward model is local straight-line coverage of opaque fills; JPEG halos, nonlinear resampling, unknown gamma and complex junctions can invalidate that model. Inspect the SVG and fidelity metrics on real artwork before treating improvements as proven.
