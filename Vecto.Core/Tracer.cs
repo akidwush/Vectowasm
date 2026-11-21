@@ -8,6 +8,8 @@ public sealed class PaletteEntry
     public int PixelCount { get; init; }
 }
 
+public sealed record SeamUnderpaint(IReadOnlyList<CubicBezier> Curves, double StrokeWidth);
+
 public sealed class RegionPath
 {
     public int PaletteIndex { get; init; }
@@ -15,6 +17,8 @@ public sealed class RegionPath
     public int Area { get; init; }
     /// <summary>Outer boundary + holes; holes wind opposite, so nonzero fill renders correctly.</summary>
     public required List<List<CubicBezier>> Loops { get; init; }
+    /// <summary>Optional under-layer-only seam helpers; never change the main path curves.</summary>
+    public IReadOnlyList<SeamUnderpaint> SeamUnderpaints { get; init; } = Array.Empty<SeamUnderpaint>();
 }
 
 public sealed class VectorDocument
@@ -53,6 +57,7 @@ public sealed class TraceDiagnostics
     public int RegionMergeV1VerifiedCracks { get; init; }
     public int RegionMergeV1VerifiedContours { get; init; }
     public StackedLayerStats StackedLayers { get; init; }
+    public TopologySeamStats TopologySeams { get; init; }
     public AntiAliasBandStats AntiAliasBands { get; init; }
     public bool AntiAliasBandsSkipped { get; init; }
     public long PaletteMs { get; init; }
@@ -341,9 +346,16 @@ public static class Tracer
         }
         var originalDoc = new VectorDocument { Width = w, Height = h, Palette = palette, Regions = regions };
         StackedLayerStats stackedLayerAudit = default;
+        TopologySeamStats seamAudit = default;
+        if (options.EnableTopologySeamProtection &&
+            (!double.IsFinite(options.TopologySeamBleedPx) ||
+             options.TopologySeamBleedPx < .30 || options.TopologySeamBleedPx > .50))
+            throw new ArgumentOutOfRangeException(nameof(options.TopologySeamBleedPx));
         var doc = options.ShapeMode == ShapeMode.Stacked
             ? StackedShapeBuilder.Build(originalDoc, seg, graph, regionOrder, ct,
-                options.StackedLayerReasoningV1, audit => stackedLayerAudit = audit)
+                options.StackedLayerReasoningV1, audit => stackedLayerAudit = audit,
+                options.EnableTopologySeamProtection, options.TopologySeamBleedPx,
+                audit => seamAudit = audit)
             : originalDoc;
         if (options.ShapeMode == ShapeMode.Stacked)
             nodes = doc.Regions.Sum(r => r.Loops.Sum(loop => loop.Count));
@@ -373,6 +385,7 @@ public static class Tracer
             RegionMergeV1VerifiedCracks = topologyAudit.Cracks,
             RegionMergeV1VerifiedContours = topologyAudit.ClosedContours,
             StackedLayers = stackedLayerAudit,
+            TopologySeams = seamAudit,
             AntiAliasBands = antiAliasBands,
             AntiAliasBandsSkipped = aaSkipped,
             PaletteMs = paletteMs,

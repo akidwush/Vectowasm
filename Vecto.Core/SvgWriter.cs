@@ -30,6 +30,30 @@ public static class SvgWriter
               .Append("\" opacity=\"1.00\" d=\"");
             foreach (var loop in region.Loops) AppendLoop(sb, loop);
             sb.Append("\" />\n");
+            // Optional internal underpaint is emitted AFTER its back region
+            // but BEFORE the as-yet-unpainted front region. Main paths do not
+            // receive stroke or geometry changes. No global micro-stroke.
+            // Batch all safe seam runs with identical width and back colour
+            // into ONE compound open-path. Disjoint runs begin with 'M'
+            // (never 'Z'), preserving draw order and individual geometry.
+            if (region.SeamUnderpaints.Count > 0)
+            {
+                var byWidth = region.SeamUnderpaints
+                    .Where(seam => seam.Curves.Count > 0)
+                    .GroupBy(seam => seam.StrokeWidth);
+                foreach (var group in byWidth)
+                {
+                    sb.Append("<path data-seam=\"1\" fill=\"none\" stroke=\"#")
+                      .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
+                      .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
+                      .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
+                      .Append("\" stroke-width=\"").Append(Compact(group.Key))
+                      .Append("\" stroke-linejoin=\"round\" d=\"");
+                    foreach (var seam in group)
+                        AppendUnderpaint(sb, seam.Curves);
+                    sb.Append("\" />\n");
+                }
+            }
         }
         sb.Append("</svg>\n");
         return sb.ToString();
@@ -52,5 +76,26 @@ public static class SvgWriter
         sb.Append(" Z");
     }
 
+    private static void AppendUnderpaint(StringBuilder sb, IReadOnlyList<CubicBezier> curves)
+    {
+        // SVG commands separate numbers without extra whitespace; this is
+        // lexically equivalent to the original two-decimal auxiliary geometry.
+        // Main region path serialization remains byte-for-byte untouched.
+        var first = curves[0];
+        sb.Append('M').Append(Compact(first.P0.X)).Append(' ').Append(Compact(first.P0.Y));
+        foreach (var seg in curves)
+        {
+            if (seg.IsLine())
+                sb.Append('L').Append(Compact(seg.P3.X)).Append(' ').Append(Compact(seg.P3.Y));
+            else
+                sb.Append('C').Append(Compact(seg.P1.X)).Append(' ').Append(Compact(seg.P1.Y)).Append(' ')
+                  .Append(Compact(seg.P2.X)).Append(' ').Append(Compact(seg.P2.Y)).Append(' ')
+                  .Append(Compact(seg.P3.X)).Append(' ').Append(Compact(seg.P3.Y));
+        }
+        // Never close an auxiliary open path: no extra connecting seam.
+    }
+
     static string F(double v) => v.ToString("0.00", CultureInfo.InvariantCulture);
+    // Equal 2-decimal precision; drop insignificant trailing zeroes ONLY for helper SVG data.
+    static string Compact(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
 }

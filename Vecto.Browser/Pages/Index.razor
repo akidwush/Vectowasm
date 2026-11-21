@@ -118,6 +118,8 @@
                             <p class="help-text">Mendeteksi pita warna transisi tipis yang tersisa di antara dua warna solid. Perlindungan warna asli, gradient lebar, dan transparansi; otomatis dilewati untuk input bertekstur / palet exact.</p>
                             <label class="check-option"><input type="checkbox" @bind="stackedLayerReasoningV1" disabled="@(running || loadingFile || shapeMode != ShapeMode.Stacked)" /> Stacked Layer Reasoning V1 (eksperimen)</label>
                             <p class="help-text">Khusus Bentuk Bertumpuk: menyusun layer berdasarkan hubungan tutup-menutup dan menggabungkan path sewarna. Otomatis memakai hasil Stacked biasa jika render pembanding berubah. Aktifkan Bentuk Bertumpuk terlebih dahulu.</p>
+                            <label class="check-option"><input type="checkbox" @bind="topologySeamProtection" disabled="@(running || loadingFile || shapeMode != ShapeMode.Stacked || stackedLayerReasoningV1)" /> Topology-Aware Seam Protection (under-layer only, eksperimental)</label>
+                            <p class="help-text">Hanya di Stacked: menambahkan path cat tipis milik region belakang pada shared-edge yang aman (bleed 0,35 px). Kurva dan warna region depan TIDAK diubah. Tepi luar, transparansi, junction, fitur tipis dilindungi. Tidak berjalan bersamaan dengan Stacked Layer Reasoning V1.</p>
                             <label>Seed <input type="number" @bind="seed" /></label>
                             <label class="check-option"><input type="checkbox" @bind="curveFitting" /> Kurva Bézier</label>
                             @if (curveFitting)
@@ -295,6 +297,7 @@
     private bool regionMergeV1;
     private bool antiAliasBandV1;
     private bool stackedLayerReasoningV1;
+    private bool topologySeamProtection;
     private bool curveFitting = true;
     private bool ekstraceAreaInversion = true;
     private bool optimizeNodes = true;
@@ -440,7 +443,9 @@
         LocalEdgeRefinementV3 = enableV3,
         RegionMergeV1 = regionMergeV1,
         AntiAliasBandV1 = antiAliasBandV1,
-        StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked
+        StackedLayerReasoningV1 = stackedLayerReasoningV1 && shapeMode == ShapeMode.Stacked,
+        EnableTopologySeamProtection = topologySeamProtection && shapeMode == ShapeMode.Stacked && !stackedLayerReasoningV1,
+        TopologySeamBleedPx = 0.35
     };
 
     private static int CountSegments(TraceResult trace) =>
@@ -575,10 +580,13 @@
                 : useV3
                     ? $" · Local Edge V3: {traced.Diagnostics.LocalEdgeV3MovedPoints:N0} titik digeser"
                     : " · Engine Original";
+            string seamInfo = traceOptions.EnableTopologySeamProtection
+                ? $" · Seam Protection: {traced.Diagnostics.TopologySeams.UnderpaintRuns} helper / {traced.Diagnostics.TopologySeams.SafeSharedEdges} batas aman (dari {traced.Diagnostics.TopologySeams.ConsideredSharedEdges} batas internal)"
+                : "";
             string inkInfo = protectedColorLimit is { } cap
                 ? $" · Warna aksen terjaga (batas palet {originalBudget} → {cap})"
                 : "";
-            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{inkInfo}{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{aaInfo}{stackedInfo}";
+            lastDiagnostics = $"{shapeInfo} · Deteksi otomatis{inkInfo}{pixelInfo} · {traced.Diagnostics.TotalMs} ms · {traced.Diagnostics.RegionCount} regions · {traced.Diagnostics.NodeCount} nodes{fitStats} · {traced.Document.Palette.Count} colors{v3Info}{mergeInfo}{aaInfo}{stackedInfo}{seamInfo}";
 
             if (compare && originalTrace is not null && originalSvg is not null && originalOptions is not null)
             {

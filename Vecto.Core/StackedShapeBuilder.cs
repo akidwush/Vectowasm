@@ -11,7 +11,9 @@ internal static class StackedShapeBuilder
         VectorDocument planar, Segmentation seg, BoundaryGraph graph,
         IReadOnlyList<int> regionOrder, CancellationToken ct,
         bool stackedLayerReasoningV1 = false,
-        Action<StackedLayerStats>? onLayerAudit = null)
+        Action<StackedLayerStats>? onLayerAudit = null,
+        bool enableTopologySeamProtection = false, double seamBleedPx = .35,
+        Action<TopologySeamStats>? onSeamAudit = null)
     {
         int count = seg.RegionCount;
         VectorDocument Wrap(IEnumerable<RegionPath> output) => new()
@@ -162,8 +164,21 @@ internal static class StackedShapeBuilder
             });
         }
         var baseline = Wrap(result);
+        if (enableTopologySeamProtection && !stackedLayerReasoningV1)
+        {
+            // This pass must see the original one-to-one region IDs. The
+            // experimental layer combiner merges region identities and its
+            // output is intentionally excluded until a proven ordering map exists.
+            var augmented = TopologySeamProtection.Attach(result, seg, graph,
+                ordered, frontOf, seamBleedPx, planar.Width, planar.Height, ct,
+                out var seamStats);
+            onSeamAudit?.Invoke(seamStats);
+            return Wrap(augmented);
+        }
         if (!stackedLayerReasoningV1)
             return baseline;
+        if (enableTopologySeamProtection)
+            onSeamAudit?.Invoke(new TopologySeamStats(0, 0, 0, 0, 0, 0, true));
 
         // Region ids and original painter order are retained so that the
         // experiment cannot accidentally identify shapes only by palette.

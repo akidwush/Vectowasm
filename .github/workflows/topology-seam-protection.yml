@@ -1,0 +1,44 @@
+name: Topology-Aware Seam Protection — experimental quality gate
+on:
+  pull_request:
+    paths:
+      - "Vecto.Core/**"
+      - "Vecto.Browser/**"
+      - "Vecto.SeamTests/**"
+      - "tests/verify_topology_seams.py"
+      - ".github/workflows/topology-seam-protection.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seam-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build opt-in seam tests
+        run: dotnet build Vecto.SeamTests/Vecto.SeamTests.csproj -c Release
+      - name: Geometry, topology and exact original-path regression
+        run: dotnet run --project Vecto.SeamTests/Vecto.SeamTests.csproj -c Release --no-build -- --output seam-artifacts
+      - name: Install antialiased SVG renderer
+        run: python -m pip install 'CairoSVG==2.8.2' 'Pillow==12.0.0'
+      - name: Anti-alias seam tests at 100%, 200%, 400%
+        run: python tests/verify_topology_seams.py seam-artifacts
+      - name: Existing palette, topology and stack checks
+        run: dotnet run --project Vecto.PaletteTests/Vecto.PaletteTests.csproj -c Release
+      - name: Build browser UI
+        run: dotnet publish Vecto.Browser/Vecto.Browser.csproj -c Release -o publish
+      - name: Archive actual SVG fixtures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: topology-seam-before-after
+          path: seam-artifacts/*.svg
+          if-no-files-found: warn
