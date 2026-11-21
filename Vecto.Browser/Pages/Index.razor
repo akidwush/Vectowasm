@@ -150,7 +150,7 @@
                         @if (alternateSvgUrl is not null && baselineDiagnostics is not null && v3Diagnostics is not null)
                         {
                             <div class="ab-report">
-                                <strong>Hasil A/B — parameter sama</strong>
+                                <strong>Hasil A/B — input dan toleransi sama; optimizer pasca-fit dimatikan saat membandingkan dua fitter</strong>
                                 <div class="ab-table-scroll">
                                     <table>
                                         <thead><tr><th>Metrik</th><th>Original</th><th>@abEngineLabel</th></tr></thead>
@@ -482,6 +482,8 @@
             // retry at most two extra palette slots. Preserve the old trace
             // unless source color coverage and overall error both improve.
             var baselineOptions = BuildOptions(colors, compare ? false : useV3, compare ? false : useEkstrace);
+            // A/B of the two fitters: disable Vecto post-fit optimizer on both sides.
+            if (engineMode == "CompareEkstrace") baselineOptions.OptimizeNodes = false;
             TraceResult selected = Tracer.Trace(image, baselineOptions);
             int originalBudget = colors;
             if (manualColorLimit == 0 && style != ImageStyle.Photo &&
@@ -493,8 +495,9 @@
                     for (int extra = 1; extra <= 2 && originalBudget + extra <= 64; extra++)
                     {
                         int proposed = originalBudget + extra;
-                        TraceResult candidate = Tracer.Trace(image,
-                            BuildOptions(proposed, compare ? false : useV3, compare ? false : useEkstrace));
+                        var candidateOptions = BuildOptions(proposed, compare ? false : useV3, compare ? false : useEkstrace);
+                        if (engineMode == "CompareEkstrace") candidateOptions.OptimizeNodes = false;
+                        TraceResult candidate = Tracer.Trace(image, candidateOptions);
                         if (!AutoPaletteInkGuard.IsImprovement(image, selected, candidate, ink))
                             continue;
                         selected = candidate;
@@ -507,6 +510,8 @@
             protectedColorLimit = colors > originalBudget ? colors : null;
             TraceResult? originalTrace = compare ? selected : null;
             TraceOptions? originalOptions = compare ? BuildOptions(colors, false) : null;
+            if (engineMode == "CompareEkstrace" && originalOptions is not null)
+                originalOptions.OptimizeNodes = false;
             string? originalSvg = compare ? SvgWriter.Write(selected.Document) : null;
             var traceOptions = BuildOptions(colors, useV3, useEkstrace);
             var traced = compare ? Tracer.Trace(image, traceOptions) : selected;
