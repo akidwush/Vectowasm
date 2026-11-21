@@ -47,7 +47,7 @@ public static class SvgWriter
                       .Append(c.R.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.G.ToString("x2", CultureInfo.InvariantCulture))
                       .Append(c.B.ToString("x2", CultureInfo.InvariantCulture))
-                      .Append("\" stroke-width=\"").Append(Compact(group.Key))
+                      .Append("\" stroke-width=\"").Append(F1(group.Key))
                       .Append("\" stroke-linejoin=\"round\" d=\"");
                     var pen = new Vec2(0, 0);
                     foreach (var seam in group)
