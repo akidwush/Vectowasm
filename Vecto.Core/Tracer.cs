@@ -37,6 +37,9 @@ public sealed class TraceDiagnostics
     public int OptimizedChainNodes { get; init; }
     public int GlobalReducedChains { get; init; }
     public int LocalEdgeV3MovedPoints { get; init; }
+    public int EkstraceV1Chains { get; init; }
+    public int EkstraceV1OriginalFallbackChains { get; init; }
+    public int EkstraceV1CurvedChains { get; init; }
     public int RegionMergeV1Before { get; init; }
     public int RegionMergeV1After { get; init; }
     public int RegionMergeV1ChangedPixels { get; init; }
@@ -179,6 +182,7 @@ public static class Tracer
         int fittedChainNodes = 0, optimizedChainNodes = 0;
         int globalReducedChains = 0;
         int localV3MovedPoints = 0;
+        int ekstraceV1Chains = 0, ekstraceV1Fallbacks = 0, ekstraceV1CurvedChains = 0;
         if (options.LocalEdgeRefinementV3 &&
             (!double.IsFinite(options.LocalEdgeMaxShiftV3) ||
              options.LocalEdgeMaxShiftV3 < 0.05 || options.LocalEdgeMaxShiftV3 > 0.35 ||
@@ -230,9 +234,19 @@ public static class Tracer
                         options.LocalEdgeMinCandidateShiftV3);
                     System.Threading.Interlocked.Add(ref localV3MovedPoints, moved);
                 }
-                chain.Curve = options.ContourFittingEngine == ContourFittingEngine.Ekstracev1
-                    ? EkstraceV1Fitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq, ct)
-                    : BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);
+                if (options.ContourFittingEngine == ContourFittingEngine.Ekstracev1)
+                {
+                    chain.Curve = EkstraceV1Fitter.FitChain(chain.Points, chain.Closed, corners,
+                        p.FitToleranceSq, out bool usedOriginalFallback, ct);
+                    Interlocked.Increment(ref ekstraceV1Chains);
+                    if (usedOriginalFallback) Interlocked.Increment(ref ekstraceV1Fallbacks);
+                    else if (chain.Curve.Any(segment => !segment.IsLine()))
+                        Interlocked.Increment(ref ekstraceV1CurvedChains);
+                }
+                else
+                {
+                    chain.Curve = BezierFitter.FitChain(chain.Points, chain.Closed, corners, p.FitToleranceSq);
+                }
                 System.Threading.Interlocked.Add(ref fittedChainNodes, chain.Curve.Count);
                 // Preserve Ekstracev1's own G1 joins; the Vecto DP reducer has a separate contract.
                 if (options.ContourFittingEngine == ContourFittingEngine.Original && options.OptimizeNodes && chain.Curve.Count > 1)
@@ -322,6 +336,9 @@ public static class Tracer
             OptimizedChainNodes = optimizedChainNodes,
             GlobalReducedChains = globalReducedChains,
             LocalEdgeV3MovedPoints = localV3MovedPoints,
+            EkstraceV1Chains = ekstraceV1Chains,
+            EkstraceV1OriginalFallbackChains = ekstraceV1Fallbacks,
+            EkstraceV1CurvedChains = ekstraceV1CurvedChains,
             RegionMergeV1Before = regionMerge.RegionsBefore,
             RegionMergeV1After = regionMerge.RegionsAfter,
             RegionMergeV1ChangedPixels = regionMerge.RelabeledPixels,
